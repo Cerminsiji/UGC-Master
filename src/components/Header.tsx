@@ -8,7 +8,8 @@ import {
   Flame,
   FolderOpen,
   Check,
-  Plus
+  Plus,
+  BrainCircuit,
 } from 'lucide-react';
 import { formatDuration } from '../utils/helpers';
 import { Scene } from '../types';
@@ -20,6 +21,7 @@ interface HeaderProps {
   scenes: Scene[];
   onTitleChange: (newTitle: string) => void;
   onOpenTrendingHarvest: () => void;
+  onOpenLearningCenter: () => void;
   onOpenAIGenerator: () => void;
   onOpenHooksModal: () => void;
   onOpenTeleprompter: () => void;
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   scenes,
   onTitleChange,
   onOpenTrendingHarvest,
+  onOpenLearningCenter,
   onOpenAIGenerator,
   onOpenHooksModal,
   onOpenTeleprompter,
@@ -138,10 +141,21 @@ export const Header: React.FC<HeaderProps> = ({
             id="header-trending-harvest-btn"
             onClick={onOpenTrendingHarvest}
             className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-rose-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Buka Trending Harvest (Marketplace Intelligence)"
+            title="Buka Trending Harvest (Produk Nyata & Market Intelligence)"
           >
             <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
             <span>Trending Harvest</span>
+          </button>
+
+          {/* Market & User Learning Center Button */}
+          <button
+            id="header-learning-center-btn"
+            onClick={onOpenLearningCenter}
+            className="flex items-center gap-1.5 bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-300 hover:text-indigo-200 border border-indigo-500/40 hover:border-indigo-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
+            title="Pusat Pembelajaran AI Pasar & Feedback User"
+          >
+            <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">Belajar AI</span>
           </button>
 
           {/* AI Generate Button */}

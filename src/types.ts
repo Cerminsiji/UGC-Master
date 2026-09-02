@@ -97,8 +97,11 @@ export interface AIHookOption {
 export interface TrendingProduct {
   id: string;
   name: string;
+  brandName?: string;
   category: string;
-  marketplace: 'TikTok Shop' | 'Shopee Video' | 'Tokopedia' | 'Instagram Reels';
+  marketplace: 'TikTok Shop' | 'Shopee Video' | 'Tokopedia' | 'Instagram Reels' | 'Lazada';
+  marketplaceUrl?: string; // Direct real verification link
+  isVerifiedReal?: boolean;
   price: string;
   priceRaw: number;
   priceAnalysis: {
@@ -126,4 +129,33 @@ export interface TrendingProduct {
   suggestedUSP: string;
   suggestedCaption: string;
   recommendedCategory: string;
+}
+
+export interface LearnedRule {
+  id: string;
+  ruleText: string;
+  category: string;
+  source: 'user_defined' | 'market_signal' | 'feedback_loop';
+  createdAt: string;
+  active: boolean;
+}
+
+export interface MarketSignal {
+  id: string;
+  marketplace: string;
+  trendName: string;
+  insight: string;
+  detectedAt: string;
+  confidenceScore: number;
+}
+
+export interface CreatorLearningMemory {
+  totalScriptsGenerated: number;
+  totalFeedbacksLogged: number;
+  learnedRules: LearnedRule[];
+  marketSignals: MarketSignal[];
+  preferredVisualFocus: string;
+  topConvertingHooks: string[];
+  winningPriceBracket: string;
+  lastUpdated: string;
 }

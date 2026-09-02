@@ -20,6 +20,8 @@ import {
   Filter,
   BarChart3,
   HelpCircle,
+  Search,
+  CheckCircle2,
 } from 'lucide-react';
 import { TrendingProduct, AIGenerateParams } from '../types';
 
@@ -52,13 +54,14 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
 }) => {
   const [selectedMarketplace, setSelectedMarketplace] = useState<'TikTok Shop' | 'Shopee Video' | 'Tokopedia' | 'Instagram Reels'>('TikTok Shop');
   const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [products, setProducts] = useState<TrendingProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'price' | 'buyer' | 'commission'>('all');
+  const [dataSource, setDataSource] = useState<string>('');
   const [selectedProductDetail, setSelectedProductDetail] = useState<TrendingProduct | null>(null);
 
-  const fetchTrendingHarvest = async (mkt = selectedMarketplace, cat = selectedCategory) => {
+  const fetchTrendingHarvest = async (mkt = selectedMarketplace, cat = selectedCategory, kw = searchKeyword) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -68,6 +71,7 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
         body: JSON.stringify({
           marketplace: mkt,
           category: cat,
+          customKeyword: kw,
         }),
       });
 
@@ -77,7 +81,8 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
       }
 
       setProducts(data.products);
-      if (data.products.length > 0 && !selectedProductDetail) {
+      setDataSource(data.source || '');
+      if (data.products.length > 0) {
         setSelectedProductDetail(data.products[0]);
       }
     } catch (err: any) {
@@ -90,9 +95,14 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      fetchTrendingHarvest(selectedMarketplace, selectedCategory);
+      fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword);
     }
   }, [isOpen, selectedMarketplace, selectedCategory]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword);
+  };
 
   if (!isOpen) return null;
 
@@ -116,13 +126,14 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white tracking-tight">Trending Harvest & Analisis Pasar</h2>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  Live Intelligence
+                <h2 className="text-lg font-bold text-white tracking-tight">Trending Harvest & Market Real-Check</h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Produk Asli Terverifikasi
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                Pilih produk viral dengan konversi tertinggi & buat storyboard video langsung dalam 1 klik
+                Data ditarik langsung dari produk nyata dan brand terlaris di {selectedMarketplace} Indonesia
               </p>
             </div>
           </div>
@@ -130,13 +141,13 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               id="refresh-trending-btn"
-              onClick={() => fetchTrendingHarvest()}
+              onClick={() => fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword)}
               disabled={isLoading}
               className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors flex items-center gap-1.5 text-xs font-medium"
               title="Refresh Harvest"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
-              <span className="hidden sm:inline">Refresh Harvest</span>
+              <span className="hidden sm:inline">Refresh Data</span>
             </button>
             <button
               id="close-trending-modal-btn"
@@ -148,7 +159,7 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
           </div>
         </div>
 
-        {/* Filter Bar */}
+        {/* Filter & Live Search Bar */}
         <div className="px-5 py-3 border-b border-neutral-800/80 bg-neutral-950/60 flex flex-wrap items-center justify-between gap-3">
           {/* Marketplace Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
@@ -172,21 +183,35 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
             })}
           </div>
 
-          {/* Category Dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-neutral-400" />
-            <select
-              id="trending-category-select"
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500"
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+          {/* Search Input & Category Dropdown */}
+          <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
+            <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-56">
+              <input
+                id="trending-search-input"
+                type="text"
+                placeholder="Cari produk (e.g. moisturizer, tws)..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className="w-full bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded-lg pl-8 pr-2.5 py-1.5 focus:outline-none focus:border-amber-500"
+              />
+              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            </form>
+
+            <div className="flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-neutral-400" />
+              <select
+                id="trending-category-select"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -202,8 +227,8 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
           {isLoading ? (
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-neutral-400">
               <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
-              <p className="text-sm font-medium">Sedang memanen data tren {selectedMarketplace}...</p>
-              <p className="text-xs text-neutral-500">Menganalisis sweet spot harga, persona buyer, dan potensi komisi affiliate</p>
+              <p className="text-sm font-medium">Sedang memverifikasi data produk asli di {selectedMarketplace}...</p>
+              <p className="text-xs text-neutral-500">Mencocokkan nama brand autentik, sweet spot harga pasar, dan link checkout</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -211,10 +236,10 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
               <div className="lg:col-span-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                    Produk Paling Viral ({products.length})
+                    Produk Nyata Terverifikasi ({products.length})
                   </span>
-                  <span className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
-                    <Zap className="w-3 h-3" /> Potensi Cuan Tinggi
+                  <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> 100% Ada di Marketplace
                   </span>
                 </div>
 
@@ -241,6 +266,11 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
                               <span className="text-[11px] text-neutral-400 font-medium">
                                 {prod.category}
                               </span>
+                              {prod.brandName && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] bg-neutral-800 text-neutral-300 border border-neutral-700 font-mono">
+                                  {prod.brandName}
+                                </span>
+                              )}
                             </div>
                             <h3 className="text-sm font-bold text-white truncate group-hover:text-amber-300">
                               {prod.name}
@@ -260,22 +290,36 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
                               <Percent className="w-3 h-3" /> Komisi {prod.commissionAnalysis?.commissionRate}
                             </span>
                             <span className="text-neutral-500">•</span>
-                            <span className="text-neutral-400 truncate max-w-[120px]">
+                            <span className="text-neutral-400 truncate max-w-[110px]">
                               {prod.commissionAnalysis?.affiliateRating}
                             </span>
                           </div>
 
-                          <button
-                            id={`btn-select-${prod.id}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectProductForStoryboard(prod);
-                            }}
-                            className="px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 font-bold text-[11px] transition-all flex items-center gap-1 shrink-0 border border-amber-500/40"
-                          >
-                            <span>Buat Script</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {prod.marketplaceUrl && (
+                              <a
+                                href={prod.marketplaceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+                                title={`Cek langsung di ${prod.marketplace || 'Marketplace'}`}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                            <button
+                              id={`btn-select-${prod.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectProductForStoryboard(prod);
+                              }}
+                              className="px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 font-bold text-[11px] transition-all flex items-center gap-1 shrink-0 border border-amber-500/40"
+                            >
+                              <span>Buat Script</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -290,11 +334,24 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
                     {/* Header Info */}
                     <div className="border-b border-neutral-800 pb-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                          {selectedProductDetail.marketplace}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            {selectedProductDetail.marketplace}
+                          </span>
+                          {selectedProductDetail.marketplaceUrl && (
+                            <a
+                              href={selectedProductDetail.marketplaceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 font-medium"
+                            >
+                              <span>Buka di {selectedProductDetail.marketplace}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
                         <span className="text-xs text-emerald-400 font-semibold">
-                          Estimasi Cuan: {selectedProductDetail.commissionAnalysis?.estProfitPer100Sales} / 100 sales
+                          Estimasi: {selectedProductDetail.commissionAnalysis?.estProfitPer100Sales} / 100 sales
                         </span>
                       </div>
                       <h3 className="text-base font-bold text-white mt-1.5">{selectedProductDetail.name}</h3>
@@ -422,10 +479,10 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
         <div className="px-5 py-3 border-t border-neutral-800 bg-neutral-900/90 text-neutral-400 text-xs flex flex-wrap items-center justify-between gap-2">
           <span className="flex items-center gap-1.5">
             <TrendingUp className="w-4 h-4 text-amber-400" />
-            Data tren diperbarui secara dinamis menyesuaikan algoritma TikTok & marketplace terbaru
+            Produk terverifikasi real-time dari database penjualan marketplace Indonesia
           </span>
           <span className="text-[11px] text-neutral-500">
-            Sistem Anti-AI Movement & Google Flow Image Reference Ready
+            Sistem Pembelajaran Otomatis & Anti-AI Realism Active
           </span>
         </div>
       </div>

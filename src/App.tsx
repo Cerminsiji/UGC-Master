@@ -5,6 +5,7 @@ import { SceneCard } from './components/SceneCard';
 import { AIGeneratorModal } from './components/AIGeneratorModal';
 import { TrendingHarvestModal } from './components/TrendingHarvestModal';
 import { HookGeneratorModal } from './components/HookGeneratorModal';
+import { MarketLearningCenterModal } from './components/MarketLearningCenterModal';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { ExportModal } from './components/ExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
@@ -119,6 +120,7 @@ export default function App() {
 
   // Modals state
   const [isTrendingHarvestOpen, setIsTrendingHarvestOpen] = useState(false);
+  const [isLearningCenterOpen, setIsLearningCenterOpen] = useState(false);
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
   const [isHooksModalOpen, setIsHooksModalOpen] = useState(false);
   const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false);
@@ -571,6 +573,7 @@ export default function App() {
         scenes={currentProject.scenes}
         onTitleChange={handleTitleChange}
         onOpenTrendingHarvest={() => setIsTrendingHarvestOpen(true)}
+        onOpenLearningCenter={() => setIsLearningCenterOpen(true)}
         onOpenAIGenerator={() => setIsAIGeneratorOpen(true)}
         onOpenHooksModal={() => setIsHooksModalOpen(true)}
         onOpenTeleprompter={() => setIsTeleprompterOpen(true)}
@@ -802,6 +805,12 @@ export default function App() {
         isOpen={isTrendingHarvestOpen}
         onClose={() => setIsTrendingHarvestOpen(false)}
         onSelectProductForStoryboard={handleSelectTrendingProduct}
+      />
+
+      <MarketLearningCenterModal
+        isOpen={isLearningCenterOpen}
+        onClose={() => setIsLearningCenterOpen(false)}
+        onNotification={showToast}
       />
 
       <AIGeneratorModal
