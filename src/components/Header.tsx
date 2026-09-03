@@ -11,6 +11,7 @@ import {
   Plus,
   BrainCircuit,
   Database,
+  ShieldCheck,
 } from 'lucide-react';
 import { formatDuration } from '../utils/helpers';
 import { Scene } from '../types';
@@ -22,6 +23,7 @@ interface HeaderProps {
   scenes: Scene[];
   onTitleChange: (newTitle: string) => void;
   onOpenTrendingHarvest: () => void;
+  onOpenMarketRealCheck: () => void;
   onOpenLearningCenter: () => void;
   onOpenProductDatabase: () => void;
   onOpenAIGenerator: () => void;
@@ -32,6 +34,8 @@ interface HeaderProps {
   onCopyJSON: () => void;
   copiedJSON: boolean;
   onAddScene: () => void;
+  onAutoOptimize?: () => void;
+  isAutoOptimizing?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -40,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   scenes,
   onTitleChange,
   onOpenTrendingHarvest,
+  onOpenMarketRealCheck,
   onOpenLearningCenter,
   onOpenProductDatabase,
   onOpenAIGenerator,
@@ -50,6 +55,8 @@ export const Header: React.FC<HeaderProps> = ({
   onCopyJSON,
   copiedJSON,
   onAddScene,
+  onAutoOptimize,
+  isAutoOptimizing = false,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
@@ -144,10 +151,21 @@ export const Header: React.FC<HeaderProps> = ({
             id="header-trending-harvest-btn"
             onClick={onOpenTrendingHarvest}
             className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-rose-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Buka Trending Harvest (Produk Nyata & Market Intelligence)"
+            title="Buka Trending Harvest 2.0 (Growth Velocity & Celah Konten)"
           >
             <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
             <span>Trending Harvest</span>
+          </button>
+
+          {/* Market Real-Check 2.0 Button */}
+          <button
+            id="header-market-real-check-btn"
+            onClick={onOpenMarketRealCheck}
+            className="flex items-center gap-1.5 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/40 hover:border-purple-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
+            title="Buka Market Real-Check 2.0 (Validasi Kelayakan & Celah Konten)"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+            <span>Real-Check 2.0</span>
           </button>
 
           {/* Market & User Learning Center Button */}
@@ -171,6 +189,20 @@ export const Header: React.FC<HeaderProps> = ({
             <Database className="w-3.5 h-3.5 text-purple-400" />
             <span className="hidden sm:inline">Database Produk</span>
           </button>
+
+          {/* AI Auto Optimize Button (V2.0 1-Click Engine) */}
+          {onAutoOptimize && (
+            <button
+              id="header-ai-auto-optimize-btn"
+              onClick={onAutoOptimize}
+              disabled={isAutoOptimizing}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-extrabold px-3 py-2 rounded-lg shadow-md shadow-emerald-950/50 transition-all active:scale-95 border border-emerald-400/40 disabled:opacity-50"
+              title="1-Click AI Auto Optimize (Product Intelligence, 10s Retention, Audit & Scores)"
+            >
+              <Sparkles className={`w-3.5 h-3.5 text-emerald-200 ${isAutoOptimizing ? 'animate-spin' : ''}`} />
+              <span>{isAutoOptimizing ? 'Optimizing...' : 'AI Auto Optimize'}</span>
+            </button>
+          )}
 
           {/* AI Generate Button */}
           <button

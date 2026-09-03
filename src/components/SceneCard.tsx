@@ -89,14 +89,20 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       className="bg-[#101623] hover:bg-[#121927] border border-[#1d273c] hover:border-[#2b3a59] rounded-2xl p-4 md:p-5 transition-all shadow-lg shadow-black/30 relative group"
     >
       {/* Card Header matching the purple ADEGAN badge & right buttons */}
-      <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#1b253a]/80">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-[#1b253a]/80">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="bg-gradient-to-r from-purple-900/80 to-indigo-900/80 text-purple-300 border border-purple-500/40 text-[11px] font-extrabold px-3 py-1 rounded-md uppercase tracking-wider shadow-sm">
             ADEGAN {index + 1}
           </span>
+          <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-600/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wide">
+            {scene.timeRange || (index === 0 ? '[0–2s]' : index === 1 ? '[2–5s]' : index === 2 ? '[5–8s]' : '[8–10s]')}
+          </span>
+          <span className="bg-purple-950/70 text-purple-300 border border-purple-600/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
+            {scene.scenePurpose || (index === 0 ? 'HOOK' : index === 1 ? 'PROBLEM / PRODUCT' : index === 2 ? 'DEMONSTRATION' : 'RESULT / CTA')}
+          </span>
           {index === 0 && (
             <span className="bg-amber-950/60 text-amber-300 border border-amber-600/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-              Hook 3 Detik
+              Hook 0.5–2 Detik
             </span>
           )}
           {index === totalScenes - 1 && totalScenes > 1 && (
@@ -106,8 +112,40 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           )}
         </div>
 
-        {/* Action icons on header: Up, Down, Duplicate, AI Polish, Delete */}
-        <div className="flex items-center gap-1 bg-[#151c2d] border border-[#222e47] rounded-lg p-1">
+        {/* Quick copy buttons & Action icons on header */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="hidden sm:flex items-center gap-1 bg-[#121828] border border-[#1e2a44] rounded-lg p-0.5 text-[10px]">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(scene.dialogVO || '');
+              }}
+              className="px-2 py-1 text-slate-400 hover:text-white hover:bg-[#1a243a] rounded transition-colors"
+              title="Salin Voiceover Adegan Ini"
+            >
+              Copy VO
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(scene.popupText || '');
+              }}
+              className="px-2 py-1 text-slate-400 hover:text-white hover:bg-[#1a243a] rounded transition-colors"
+              title="Salin Text Overlay Adegan Ini"
+            >
+              Copy Overlay
+            </button>
+            <button
+              type="button"
+              onClick={handleSyncOverlayFromVoice}
+              className="px-2 py-1 text-purple-300 hover:text-white hover:bg-purple-950/60 rounded transition-colors"
+              title="Sinkronkan Otomatis Overlay dari Voiceover (3-5 kata)"
+            >
+              Sync VO
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[#151c2d] border border-[#222e47] rounded-lg p-1">
           <button
             onClick={onMoveUp}
             disabled={index === 0}
@@ -164,6 +202,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           </button>
         </div>
       </div>
+    </div>
 
       {/* Main Grid Content */}
       <div className="space-y-4">

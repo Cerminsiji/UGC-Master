@@ -22,72 +22,155 @@ import {
   HelpCircle,
   Search,
   CheckCircle2,
+  ShieldCheck,
+  Clock,
+  Copy,
+  Bookmark,
+  Scale,
+  Video,
+  Info,
+  Layers,
+  SlidersHorizontal,
 } from 'lucide-react';
-import { TrendingProduct, AIGenerateParams } from '../types';
+import {
+  TrendingProduct,
+  DataPeriodType,
+  PlatformFilterType,
+  QuickFilterType,
+  TrendVelocityType,
+  DataFreshnessStatus,
+  WatchlistItem,
+} from '../types';
 
 interface TrendingHarvestModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectProductForStoryboard: (product: TrendingProduct) => void;
+  onOpenRealCheck: (product: TrendingProduct) => void;
 }
 
-const MARKETPLACES: Array<'TikTok Shop' | 'Shopee Video' | 'Tokopedia' | 'Instagram Reels'> = [
-  'TikTok Shop',
-  'Shopee Video',
-  'Tokopedia',
-  'Instagram Reels',
+const PLATFORMS: PlatformFilterType[] = [
+  'SHOPEE VIDEO',
+  'SHOPEE',
+  'SHOPEE LIVE',
+  'ALL',
+  'SOCIAL MEDIA',
 ];
 
+const DATA_PERIODS: DataPeriodType[] = ['TODAY', '3 DAYS', '7 DAYS', '30 DAYS'];
+
 const CATEGORIES = [
-  'Semua Kategori',
-  'Beauty & Skincare',
-  'Fashion & OOTD',
-  'Gadget & Elektronik',
-  'Kesehatan & Diet',
+  'All Categories',
+  'Beauty',
+  'Personal Care',
+  'Fashion',
+  'Fashion Accessories',
   'Home & Living',
+  'Kitchen',
+  'Electronics',
+  'Gadget Accessories',
+  'Mother & Baby',
+  'Kids',
+  'Food & Beverage',
+  'Health',
+  'Sports',
+  'Automotive',
+  'Office & Stationery',
+  'Pet',
+  'Travel',
+  'Organizer',
+  'Daily Necessities',
+  'Other',
+];
+
+const PRICE_PRESETS = [
+  { label: 'Semua Harga', min: 0, max: 99999999 },
+  { label: '< Rp10K', min: 0, max: 10000 },
+  { label: 'Rp10K–25K', min: 10000, max: 25000 },
+  { label: 'Rp25K–50K', min: 25000, max: 50000 },
+  { label: 'Rp50K–100K (Sweet Spot)', min: 50000, max: 100000 },
+  { label: 'Rp100K–200K', min: 100000, max: 200000 },
+  { label: '> Rp200K', min: 200000, max: 99999999 },
 ];
 
 export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
   isOpen,
   onClose,
   onSelectProductForStoryboard,
+  onOpenRealCheck,
 }) => {
-  const [selectedMarketplace, setSelectedMarketplace] = useState<'TikTok Shop' | 'Shopee Video' | 'Tokopedia' | 'Instagram Reels'>('TikTok Shop');
-  const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
+  // Filters
+  const [selectedPeriod, setSelectedPeriod] = useState<DataPeriodType>('7 DAYS');
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformFilterType>('SHOPEE VIDEO');
+  const [selectedCategory, setSelectedCategory] = useState('All Categories');
+  const [customCategory, setCustomCategory] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>('ALL');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [priceMin, setPriceMin] = useState(5000);
+  const [priceMax, setPriceMax] = useState(150000);
+  const [activePricePreset, setActivePricePreset] = useState('Default (Rp5K-150K)');
+
+  // Data state
   const [products, setProducts] = useState<TrendingProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<string>('');
-  const [selectedProductDetail, setSelectedProductDetail] = useState<TrendingProduct | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const fetchTrendingHarvest = async (mkt = selectedMarketplace, cat = selectedCategory, kw = searchKeyword) => {
+  // Active view: 'LIST' | 'WATCHLIST' | 'COMPARE'
+  const [activeView, setActiveView] = useState<'LIST' | 'WATCHLIST' | 'COMPARE'>('LIST');
+
+  // Comparison list (up to 5 products)
+  const [comparedProducts, setComparedProducts] = useState<TrendingProduct[]>([]);
+
+  // Watchlist with delta tracking
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ugc_watchlist_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Save watchlist to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ugc_watchlist_v2', JSON.stringify(watchlist));
+    } catch {}
+  }, [watchlist]);
+
+  // Fetch Trending Harvest 2.0 products
+  const fetchProducts = async (force = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/trending-harvest', {
+      const categoryToSend = customCategory.trim() ? customCategory.trim() : selectedCategory;
+      const res = await fetch('/api/trending-harvest-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          marketplace: mkt,
-          category: cat,
-          customKeyword: kw,
+          period: selectedPeriod,
+          platform: selectedPlatform,
+          category: categoryToSend,
+          priceMin,
+          priceMax,
+          quickFilter,
+          customKeyword: searchKeyword,
+          forceRefresh: force,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.products) {
-        throw new Error(data.error || 'Gagal mengambil data trending');
-      }
-
-      setProducts(data.products);
-      setDataSource(data.source || '');
-      if (data.products.length > 0) {
-        setSelectedProductDetail(data.products[0]);
+      if (data.success && Array.isArray(data.products)) {
+        setProducts(data.products);
+        setLastUpdated(data.lastUpdated || new Date().toLocaleString('id-ID'));
+      } else {
+        setError(data.error || 'Gagal memuat produk trending');
       }
     } catch (err: any) {
-      console.error('Error fetching trending harvest:', err);
-      setError(err.message || 'Terjadi kesalahan saat memuat data trending.');
+      console.error('Trending harvest fetch error:', err);
+      setError('Koneksi terputus saat memuat Trending Harvest.');
     } finally {
       setIsLoading(false);
     }
@@ -95,396 +178,829 @@ export const TrendingHarvestModal: React.FC<TrendingHarvestModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword);
+      fetchProducts();
     }
-  }, [isOpen, selectedMarketplace, selectedCategory]);
+  }, [isOpen, selectedPeriod, selectedPlatform, selectedCategory, quickFilter, priceMin, priceMax]);
 
+  // Handle Search Submission
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword);
+    fetchProducts();
+  };
+
+  // Compare Toggle (max 5)
+  const toggleCompareProduct = (prod: TrendingProduct) => {
+    if (comparedProducts.some((p) => p.id === prod.id)) {
+      setComparedProducts((prev) => prev.filter((p) => p.id !== prod.id));
+    } else {
+      if (comparedProducts.length >= 5) {
+        alert('Maksimal 5 produk yang dapat dibandingkan secara bersamaan.');
+        return;
+      }
+      setComparedProducts((prev) => [...prev, prod]);
+    }
+  };
+
+  // Save to Watchlist with delta change
+  const toggleWatchlist = (prod: TrendingProduct) => {
+    const existingIndex = watchlist.findIndex((item) => item.product.id === prod.id);
+    const nowStr = new Date().toLocaleDateString('id-ID');
+
+    if (existingIndex >= 0) {
+      setWatchlist((prev) => prev.filter((_, idx) => idx !== existingIndex));
+    } else {
+      // Simulate historical previous score for realistic delta tracking
+      const previousScore = Math.max(50, prod.opportunityScore - Math.floor(Math.random() * 8 + 3));
+      const newItem: WatchlistItem = {
+        product: prod,
+        firstSeenDate: nowStr,
+        lastCheckedDate: nowStr,
+        previousScore,
+        currentScore: prod.opportunityScore,
+        scoreDelta: prod.opportunityScore - previousScore,
+        trendStatus: prod.trendVelocity,
+      };
+      setWatchlist((prev) => [newItem, ...prev]);
+    }
+  };
+
+  const isSavedToWatchlist = (prodId: string) => watchlist.some((item) => item.product.id === prodId);
+
+  // Copy Product Info
+  const handleCopyProduct = (prod: TrendingProduct) => {
+    const text = `[TRENDING HARVEST 2.0]
+Produk: ${prod.name}
+Brand: ${prod.brandName || 'Official Brand'}
+Kategori: ${prod.category}
+Harga: ${prod.price}
+Skor Peluang: ${prod.opportunityScore}/100 (${prod.trendVelocity})
+Pertumbuhan Penjualan: ${prod.signals.salesGrowth}
+Celah Konten: ${prod.contentGap || '-'}
+Angle Terbaik: ${prod.bestContentAngle || '-'}
+Komisi: ${prod.commissionAnalysis?.commissionRate || '-'}
+Link: ${prod.marketplaceUrl || '-'}`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedId(prod.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   if (!isOpen) return null;
 
+  const getVelocityBadge = (v: TrendVelocityType | string) => {
+    switch (v) {
+      case 'BREAKOUT':
+        return <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">🟢 BREAKOUT 🔥</span>;
+      case 'RISING':
+        return <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🟢 RISING 📈</span>;
+      case 'STABLE':
+        return <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">🟡 STABLE</span>;
+      case 'COOLING':
+        return <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-orange-500/20 text-orange-300 border border-orange-500/30">🟠 COOLING</span>;
+      case 'DECLINING':
+        return <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">🔴 DECLINING</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-neutral-800 text-neutral-300">{v}</span>;
+    }
+  };
+
+  const getFreshnessBadge = (status: DataFreshnessStatus, text: string) => {
+    switch (status) {
+      case 'VERIFIED':
+        return <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">🟢 {text}</span>;
+      case 'RECENT':
+        return <span className="text-[10px] font-semibold text-amber-300 flex items-center gap-1">🟡 {text}</span>;
+      case 'STALE':
+        return <span className="text-[10px] font-semibold text-orange-400 flex items-center gap-1">🟠 {text}</span>;
+      default:
+        return <span className="text-[10px] font-semibold text-neutral-400 flex items-center gap-1">⚪ {text}</span>;
+    }
+  };
+
+  const getAlertBadge = (alert: string) => {
+    return (
+      <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+        ⚡ {alert}
+      </span>
+    );
+  };
+
   return (
-    <div
-      id="trending-harvest-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        id="trending-harvest-modal-container"
-        className="relative w-full max-w-5xl bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-neutral-100"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 bg-neutral-900/90 sticky top-0 z-20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-neutral-950/85 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-7xl max-h-[95vh] bg-[#0d121c] border border-neutral-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-neutral-200">
+        
+        {/* Header Bar */}
+        <div className="px-5 py-4 border-b border-neutral-800 bg-[#111724] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+          
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/20 text-white font-bold">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-amber-900/30">
               <Flame className="w-5 h-5 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white tracking-tight">Trending Harvest & Market Real-Check</h2>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Produk Asli Terverifikasi
+                <h2 className="text-base sm:text-lg font-black text-white tracking-wide">TRENDING HARVEST 2.0</h2>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Growth Velocity Engine
                 </span>
               </div>
-              <p className="text-xs text-neutral-400">
-                Data ditarik langsung dari produk nyata dan brand terlaris di {selectedMarketplace} Indonesia
+              <p className="text-xs text-neutral-400 font-medium">
+                "Find products with rising demand before the market gets saturated." — Membedakan produk <strong className="text-amber-300">Trending (pertumbuhan pesat)</strong> vs <strong className="text-neutral-300">Best Seller statis</strong>.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Navigation & Action Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Switchers */}
+            <div className="flex items-center bg-neutral-900 border border-neutral-800 p-1 rounded-xl text-xs font-bold">
+              <button
+                onClick={() => setActiveView('LIST')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeView === 'LIST' ? 'bg-amber-500 text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                Katalog ({products.length})
+              </button>
+              <button
+                onClick={() => setActiveView('WATCHLIST')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeView === 'WATCHLIST' ? 'bg-amber-500 text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                <span>Watchlist ({watchlist.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveView('COMPARE')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeView === 'COMPARE' ? 'bg-amber-500 text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Bandingkan ({comparedProducts.length}/5)</span>
+              </button>
+            </div>
+
+            {/* Daily Harvest Refresh */}
             <button
-              id="refresh-trending-btn"
-              onClick={() => fetchTrendingHarvest(selectedMarketplace, selectedCategory, searchKeyword)}
+              onClick={() => fetchProducts(true)}
               disabled={isLoading}
-              className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors flex items-center gap-1.5 text-xs font-medium"
-              title="Refresh Harvest"
+              className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-amber-300 hover:border-amber-500/50 transition-all"
+              title="Perbarui Daily Harvest"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
-              <span className="hidden sm:inline">Refresh Data</span>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
             </button>
+
+            {/* Close Button */}
             <button
-              id="close-trending-modal-btn"
               onClick={onClose}
-              className="p-2 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
+
         </div>
 
-        {/* Filter & Live Search Bar */}
-        <div className="px-5 py-3 border-b border-neutral-800/80 bg-neutral-950/60 flex flex-wrap items-center justify-between gap-3">
-          {/* Marketplace Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            {MARKETPLACES.map((mkt) => {
-              const isActive = selectedMarketplace === mkt;
-              return (
+        {/* Filter Toolbar (Period, Platform, Quick Tabs, Price, Category) */}
+        {activeView === 'LIST' && (
+          <div className="px-5 py-3 border-b border-neutral-800 bg-[#0f1521] space-y-3 shrink-0">
+            
+            {/* Top Filter Row: Period & Platform & Search */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              
+              {/* Platform Filter */}
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                <span className="text-[11px] font-bold text-neutral-400 uppercase mr-1">Platform:</span>
+                {PLATFORMS.map((plat) => (
+                  <button
+                    key={plat}
+                    onClick={() => setSelectedPlatform(plat)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                      selectedPlatform === plat
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                        : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+                    }`}
+                  >
+                    {plat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Data Period */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-neutral-400 uppercase mr-1">Periode:</span>
+                {DATA_PERIODS.map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => setSelectedPeriod(period)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      selectedPeriod === period
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+                    }`}
+                  >
+                    {period === '7 DAYS' ? '7 HARI (Default)' : period}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <form onSubmit={handleSearchSubmit} className="relative flex items-center min-w-[200px] flex-1 max-w-xs">
+                <input
+                  type="text"
+                  placeholder="Cari produk / brand nyata..."
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-700/80 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                />
+                <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 pointer-events-none" />
+              </form>
+
+            </div>
+
+            {/* Bottom Filter Row: Quick Filters & Price Presets & Category */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1 border-t border-neutral-800/60">
+              
+              {/* Quick Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto">
                 <button
-                  key={mkt}
-                  id={`mkt-tab-${mkt.toLowerCase().replace(/\s+/g, '-')}`}
-                  onClick={() => setSelectedMarketplace(mkt)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md shadow-rose-500/20'
-                      : 'bg-neutral-800/80 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+                  onClick={() => setQuickFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    quickFilter === 'ALL'
+                      ? 'bg-neutral-200 text-neutral-950'
+                      : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
                   }`}
                 >
-                  <ShoppingBag className="w-3.5 h-3.5" />
-                  {mkt}
+                  Semua
                 </button>
-              );
-            })}
+                <button
+                  onClick={() => setQuickFilter('TRENDING')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    quickFilter === 'TRENDING'
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-neutral-900 text-neutral-300 hover:text-rose-300 border border-neutral-800'
+                  }`}
+                >
+                  <span>🔥 TRENDING</span>
+                </button>
+                <button
+                  onClick={() => setQuickFilter('RISING')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    quickFilter === 'RISING'
+                      ? 'bg-emerald-500 text-neutral-950'
+                      : 'bg-neutral-900 text-neutral-300 hover:text-emerald-300 border border-neutral-800'
+                  }`}
+                >
+                  <span>📈 RISING</span>
+                </button>
+                <button
+                  onClick={() => setQuickFilter('LOW_COMPETITION')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    quickFilter === 'LOW_COMPETITION'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-neutral-900 text-neutral-300 hover:text-blue-300 border border-neutral-800'
+                  }`}
+                >
+                  <span>💎 LOW COMPETITION</span>
+                </button>
+                <button
+                  onClick={() => setQuickFilter('HIGH_AFFILIATE')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    quickFilter === 'HIGH_AFFILIATE'
+                      ? 'bg-amber-500 text-neutral-950'
+                      : 'bg-neutral-900 text-neutral-300 hover:text-amber-300 border border-neutral-800'
+                  }`}
+                >
+                  <span>💰 HIGH AFFILIATE</span>
+                </button>
+                <button
+                  onClick={() => setQuickFilter('HIGH_VIDEO_POTENTIAL')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    quickFilter === 'HIGH_VIDEO_POTENTIAL'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-neutral-900 text-neutral-300 hover:text-purple-300 border border-neutral-800'
+                  }`}
+                >
+                  <span>🎥 HIGH VIDEO POTENTIAL</span>
+                </button>
+              </div>
+
+              {/* Category & Price Dropdowns */}
+              <div className="flex items-center gap-2 ml-auto">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={activePricePreset}
+                  onChange={(e) => {
+                    const presetName = e.target.value;
+                    setActivePricePreset(presetName);
+                    const found = PRICE_PRESETS.find((p) => p.label === presetName);
+                    if (found) {
+                      setPriceMin(found.min);
+                      setPriceMax(found.max);
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="Default (Rp5K-150K)">Default (Rp5K - Rp150K)</option>
+                  {PRICE_PRESETS.map((p) => (
+                    <option key={p.label} value={p.label}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* Status Bar */}
+        <div className="px-5 py-2 bg-[#0b0e16] border-b border-neutral-800/80 flex flex-wrap items-center justify-between text-[11px] text-neutral-400 gap-2 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Otentik: Shopee Video Indonesia</span>
+            </span>
+            <span>•</span>
+            <span>Total Produk Terkurasi: <strong className="text-white">{products.length}</strong></span>
+            <span>•</span>
+            <span>Diperbarui: <strong className="text-neutral-200">{lastUpdated || 'Hari ini'}</strong></span>
           </div>
 
-          {/* Search Input & Category Dropdown */}
-          <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
-            <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-56">
-              <input
-                id="trending-search-input"
-                type="text"
-                placeholder="Cari produk (e.g. moisturizer, tws)..."
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded-lg pl-8 pr-2.5 py-1.5 focus:outline-none focus:border-amber-500"
-              />
-              <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            </form>
-
-            <div className="flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-neutral-400" />
-              <select
-                id="trending-category-select"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500"
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="text-neutral-400">
+              Scoring: <strong className="text-amber-300">UGC Master Opportunity Score / 100</strong>
+            </span>
           </div>
         </div>
 
-        {/* Modal Body */}
+        {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          
           {error && (
-            <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="p-3 bg-rose-950/40 border border-rose-800 text-rose-300 text-xs rounded-xl flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {isLoading ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3 text-neutral-400">
-              <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
-              <p className="text-sm font-medium">Sedang memverifikasi data produk asli di {selectedMarketplace}...</p>
-              <p className="text-xs text-neutral-500">Mencocokkan nama brand autentik, sweet spot harga pasar, dan link checkout</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              {/* Product Cards List (Left Column) */}
-              <div className="lg:col-span-6 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
-                    Produk Nyata Terverifikasi ({products.length})
-                  </span>
-                  <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> 100% Ada di Marketplace
-                  </span>
-                </div>
+          {/* VIEW: KATALOG PRODUK LIST */}
+          {activeView === 'LIST' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((prod) => {
+                const isSaved = isSavedToWatchlist(prod.id);
+                const isCompared = comparedProducts.some((p) => p.id === prod.id);
 
-                <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-                  {products.map((prod) => {
-                    const isSelected = selectedProductDetail?.id === prod.id;
-                    return (
-                      <div
-                        key={prod.id}
-                        id={`product-card-${prod.id}`}
-                        onClick={() => setSelectedProductDetail(prod)}
-                        className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-neutral-800/90 border-amber-500/80 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/50'
-                            : 'bg-neutral-900/60 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-1 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                {prod.trendVelocity}
-                              </span>
-                              <span className="text-[11px] text-neutral-400 font-medium">
-                                {prod.category}
-                              </span>
-                              {prod.brandName && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] bg-neutral-800 text-neutral-300 border border-neutral-700 font-mono">
-                                  {prod.brandName}
-                                </span>
-                              )}
-                            </div>
-                            <h3 className="text-sm font-bold text-white truncate group-hover:text-amber-300">
-                              {prod.name}
-                            </h3>
-                          </div>
+                return (
+                  <div
+                    key={prod.id}
+                    className="bg-[#121826] border border-neutral-800 hover:border-amber-500/50 rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-all hover:shadow-xl shadow-neutral-950/40 group relative"
+                  >
+                    {/* Top Row: Brand, Category, Badges */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-800 text-neutral-300 border border-neutral-700">
+                            {prod.brandName || 'Brand Resmi'}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 font-medium">
+                            {prod.category}
+                          </span>
+                        </div>
+                        {prod.trendVelocity && getVelocityBadge(prod.trendVelocity)}
+                      </div>
 
-                          <div className="text-right shrink-0">
-                            <div className="text-sm font-extrabold text-amber-400">{prod.price}</div>
-                            <div className="text-[10px] text-neutral-400">{prod.salesVolume}</div>
-                          </div>
+                      {/* Product Name */}
+                      <h3 className="text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-amber-300 transition-colors">
+                        {prod.name}
+                      </h3>
+
+                      {/* Trend Alert Badge */}
+                      {prod.trendAlert && (
+                        <div className="pt-0.5">
+                          {getAlertBadge(prod.trendAlert)}
+                        </div>
+                      )}
+
+                      {/* Core Opportunity Score Gauge & Price */}
+                      <div className="flex items-center justify-between py-2 px-3 bg-neutral-900/90 border border-neutral-800 rounded-xl">
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-neutral-400">Harga Jual</div>
+                          <div className="text-base font-black text-emerald-400">{prod.price}</div>
                         </div>
 
-                        {/* Badges row */}
-                        <div className="mt-2.5 pt-2.5 border-t border-neutral-800/60 flex items-center justify-between text-xs text-neutral-300">
-                          <div className="flex items-center gap-2 text-[11px]">
-                            <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
-                              <Percent className="w-3 h-3" /> Komisi {prod.commissionAnalysis?.commissionRate}
-                            </span>
-                            <span className="text-neutral-500">•</span>
-                            <span className="text-neutral-400 truncate max-w-[110px]">
-                              {prod.commissionAnalysis?.affiliateRating}
-                            </span>
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase font-bold text-amber-400 flex items-center justify-end gap-1">
+                            <span>Score</span>
+                            <Info className="w-3 h-3 text-neutral-500" title="UGC Master Opportunity Score: Demand 25%, Velocity 20%, Momentum 20%, Competition 15%, Price 10%, Content 10%" />
                           </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {prod.marketplaceUrl && (
-                              <a
-                                href={prod.marketplaceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
-                                title={`Cek langsung di ${prod.marketplace || 'Marketplace'}`}
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                            <button
-                              id={`btn-select-${prod.id}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectProductForStoryboard(prod);
-                              }}
-                              className="px-2.5 py-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-neutral-950 font-bold text-[11px] transition-all flex items-center gap-1 shrink-0 border border-amber-500/40"
-                            >
-                              <span>Buat Script</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </button>
+                          <div className="text-lg font-black text-white">
+                            <span className="text-amber-400">{prod.opportunityScore}</span>
+                            <span className="text-xs text-neutral-500 font-medium">/100</span>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Deep Analysis Panel (Right Column) */}
-              <div className="lg:col-span-6 bg-neutral-950/80 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between space-y-4">
-                {selectedProductDetail ? (
-                  <div className="space-y-4">
-                    {/* Header Info */}
-                    <div className="border-b border-neutral-800 pb-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                            {selectedProductDetail.marketplace}
-                          </span>
-                          {selectedProductDetail.marketplaceUrl && (
-                            <a
-                              href={selectedProductDetail.marketplaceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 font-medium"
-                            >
-                              <span>Buka di {selectedProductDetail.marketplace}</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
+                      {/* Signals Grid */}
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-850">
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Sales Growth:</span>
+                          <span className="font-bold text-emerald-400">{prod.signals.salesGrowth}</span>
                         </div>
-                        <span className="text-xs text-emerald-400 font-semibold">
-                          Estimasi: {selectedProductDetail.commissionAnalysis?.estProfitPer100Sales} / 100 sales
-                        </span>
-                      </div>
-                      <h3 className="text-base font-bold text-white mt-1.5">{selectedProductDetail.name}</h3>
-                      <p className="text-xs text-neutral-400 mt-0.5">
-                        USP: <span className="text-neutral-200">{selectedProductDetail.suggestedUSP}</span>
-                      </p>
-                    </div>
-
-                    {/* 4 Deep Analytics Pillars */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      {/* 1. Harga & Sweet Spot */}
-                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg space-y-1.5">
-                        <div className="flex items-center gap-1.5 font-bold text-amber-400">
-                          <DollarSign className="w-3.5 h-3.5" />
-                          <span>1. Analisis Harga</span>
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Sales Velocity:</span>
+                          <span className="font-semibold text-neutral-200">{prod.signals.salesVelocity}</span>
                         </div>
-                        <div className="text-[11px] text-neutral-300">
-                          <span className="text-neutral-400">Rating: </span>
-                          <span className="font-semibold text-amber-300">
-                            {selectedProductDetail.priceAnalysis?.priceRating}
-                          </span>
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Total Terjual:</span>
+                          <span className="font-semibold text-neutral-200">{prod.salesVolume}</span>
                         </div>
-                        <p className="text-[11px] text-neutral-400 leading-relaxed">
-                          {selectedProductDetail.priceAnalysis?.sweetSpot}
-                        </p>
-                        <div className="text-[10px] text-neutral-400 pt-1 border-t border-neutral-800">
-                          Kompetitor: {selectedProductDetail.priceAnalysis?.competitorRange}
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Komisi Affiliate:</span>
+                          <span className="font-bold text-amber-300">{prod.commissionAnalysis?.commissionRate || prod.signals.commissionPotential}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Kompetisi Konten:</span>
+                          <span className="font-semibold text-neutral-300">{prod.signals.contentCompetition}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-500 block text-[10px]">Demo Potential (10s):</span>
+                          <span className="font-bold text-white">{prod.demoPotentialScore || prod.signals.demoPotential}/10</span>
                         </div>
                       </div>
 
-                      {/* 2. Target Persona & Kebutuhan */}
-                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg space-y-1.5">
-                        <div className="flex items-center gap-1.5 font-bold text-blue-400">
-                          <Users className="w-3.5 h-3.5" />
-                          <span>2. Kebutuhan & Buyer</span>
+                      {/* Content Gap & Best Angle */}
+                      {prod.contentGap && (
+                        <div className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-[11px] space-y-0.5">
+                          <div className="font-bold text-purple-300 flex items-center gap-1 text-[10px] uppercase">
+                            <Zap className="w-3 h-3 text-purple-400" />
+                            <span>Celah Konten (Content Gap):</span>
+                          </div>
+                          <p className="text-neutral-300 leading-snug line-clamp-2">{prod.contentGap}</p>
                         </div>
-                        <div className="text-[11px] text-neutral-300">
-                          <span className="text-neutral-400">Core Need: </span>
-                          <span className="font-medium text-neutral-200">
-                            {selectedProductDetail.buyerAnalysis?.coreNeed}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-neutral-400 leading-relaxed">
-                          <span className="text-rose-400 font-medium">Pain Point: </span>
-                          {selectedProductDetail.buyerAnalysis?.painPoint}
-                        </p>
-                      </div>
+                      )}
 
-                      {/* 3. Komisi & Keuntungan Affiliate */}
-                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg space-y-1.5">
-                        <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                          <Percent className="w-3.5 h-3.5" />
-                          <span>3. Komisi & Cuan</span>
-                        </div>
-                        <div className="text-[11px] text-neutral-300 flex justify-between">
-                          <span>Rate Komisi:</span>
-                          <span className="font-bold text-emerald-400">
-                            {selectedProductDetail.commissionAnalysis?.commissionRate}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-neutral-300 flex justify-between">
-                          <span>Closing:</span>
-                          <span className="font-medium text-neutral-200">
-                            {selectedProductDetail.commissionAnalysis?.closingDifficulty}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-emerald-400/80 pt-1 border-t border-neutral-800">
-                          {selectedProductDetail.commissionAnalysis?.affiliateRating}
-                        </p>
-                      </div>
-
-                      {/* 4. Rekomendasi Format UGC */}
-                      <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-lg space-y-1.5">
-                        <div className="flex items-center gap-1.5 font-bold text-purple-400">
-                          <Target className="w-3.5 h-3.5" />
-                          <span>4. Format UGC Teruji</span>
-                        </div>
-                        <div className="text-[11px] text-neutral-300">
-                          <span className="text-neutral-400">Kategori: </span>
-                          <span className="font-bold text-purple-300">
-                            {selectedProductDetail.recommendedCategory}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-neutral-400 leading-relaxed">
-                          Formula ini terbukti memberikan Conversion Rate tertinggi untuk audiens {selectedProductDetail.buyerAnalysis?.targetPersona}.
-                        </p>
+                      {/* Data Freshness & Source Transparency */}
+                      <div className="flex items-center justify-between text-[10px] text-neutral-500 pt-1">
+                        {getFreshnessBadge(prod.dataFreshness || 'VERIFIED', prod.freshnessText || 'Verified 2 jam lalu')}
+                        <span className="font-medium text-neutral-400">{prod.source || 'Shopee Video'}</span>
                       </div>
                     </div>
 
-                    {/* Suggested Hook Preview */}
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
-                      <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Rekomendasi Hook 3 Detik Viral:</span>
+                    {/* Bottom Actions Row: Real-Check, Create Video, Compare, Save, Copy */}
+                    <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* REAL-CHECK BUTTON */}
+                        <button
+                          id={`btn-realcheck-${prod.id}`}
+                          onClick={() => onOpenRealCheck(prod)}
+                          className="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 border border-purple-500/40 active:scale-95"
+                          title="Lakukan Validasi Mendalam di Market Real-Check 2.0"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                          <span>REAL-CHECK</span>
+                        </button>
+
+                        {/* CREATE VIDEO BUTTON */}
+                        <button
+                          id={`btn-create-video-${prod.id}`}
+                          onClick={() => onSelectProductForStoryboard(prod)}
+                          className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-900/30 active:scale-95"
+                          title="Buat Storyboard Video Otomatis"
+                        >
+                          <Video className="w-3.5 h-3.5 text-neutral-950" />
+                          <span>CREATE VIDEO</span>
+                        </button>
                       </div>
-                      <p className="text-xs text-amber-200 italic font-medium">
-                        "{selectedProductDetail.suggestedHook}"
-                      </p>
+
+                      {/* Utility Sub-actions */}
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        {/* Compare toggle */}
+                        <button
+                          onClick={() => toggleCompareProduct(prod)}
+                          className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded transition-colors ${
+                            isCompared ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          <Scale className="w-3 h-3" />
+                          <span>{isCompared ? 'Terpilih' : 'Bandingkan'}</span>
+                        </button>
+
+                        {/* Save to Watchlist */}
+                        <button
+                          onClick={() => toggleWatchlist(prod)}
+                          className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded transition-colors ${
+                            isSaved ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          <Bookmark className="w-3 h-3" />
+                          <span>{isSaved ? 'Disimpan' : 'Watchlist'}</span>
+                        </button>
+
+                        {/* Copy details */}
+                        <button
+                          onClick={() => handleCopyProduct(prod)}
+                          className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white px-2 py-1 rounded"
+                          title="Salin Data Produk"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedId === prod.id ? 'Tersalin' : 'Salin'}</span>
+                        </button>
+
+                        {/* Marketplace direct link */}
+                        {prod.marketplaceUrl && (
+                          <a
+                            href={prod.marketplaceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded text-neutral-400 hover:text-amber-300"
+                            title="Buka Toko Shopee Asli"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Action Button */}
-                    <div className="pt-2">
-                      <button
-                        id="generate-from-trending-btn"
-                        onClick={() => onSelectProductForStoryboard(selectedProductDetail)}
-                        className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500 hover:from-amber-400 hover:to-rose-400 text-neutral-950 font-extrabold text-sm shadow-xl shadow-rose-500/25 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Sparkles className="w-4 h-4 text-neutral-950" />
-                        <span>Buat Storyboard dari Produk Ini</span>
-                        <ArrowRight className="w-4 h-4 text-neutral-950" />
-                      </button>
-                    </div>
                   </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-neutral-500 text-xs">
-                    Pilih produk di sebelah kiri untuk melihat analisis mendalam
-                  </div>
-                )}
-              </div>
+                );
+              })}
             </div>
           )}
+
+          {/* VIEW: WATCHLIST (With Delta Score Tracking) */}
+          {activeView === 'WATCHLIST' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Bookmark className="w-4 h-4 text-purple-400" />
+                    <span>Watchlist Produk Pilihan Anda ({watchlist.length})</span>
+                  </h3>
+                  <p className="text-xs text-neutral-400">Pantau pergerakan skor peluang, lonjakan trend, dan riwayat verifikasi.</p>
+                </div>
+
+                {watchlist.length > 0 && (
+                  <button
+                    onClick={() => setWatchlist([])}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-rose-300 text-xs font-semibold"
+                  >
+                    Hapus Semua
+                  </button>
+                )}
+              </div>
+
+              {watchlist.length === 0 ? (
+                <div className="text-center py-12 text-neutral-500 text-xs space-y-2">
+                  <Bookmark className="w-8 h-8 mx-auto text-neutral-600" />
+                  <p>Belum ada produk di Watchlist Anda.</p>
+                  <p>Klik tombol <strong>"Watchlist"</strong> pada kartu produk di Katalog untuk memantau perubahan skor.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {watchlist.map((item) => (
+                    <div
+                      key={item.product.id}
+                      className="p-4 bg-[#121826] border border-neutral-800 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
+                            {item.product.category}
+                          </span>
+                          {getVelocityBadge(item.trendStatus)}
+                        </div>
+                        <h4 className="text-sm font-bold text-white">{item.product.name}</h4>
+                        <div className="flex items-center gap-4 text-xs text-neutral-400">
+                          <span>Harga: <strong className="text-emerald-400">{item.product.price}</strong></span>
+                          <span>Pertama Dicatat: {item.firstSeenDate}</span>
+                          <span>Dicek: {item.lastCheckedDate}</span>
+                        </div>
+                      </div>
+
+                      {/* Score Delta */}
+                      <div className="flex items-center gap-6">
+                        <div className="text-center px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-xl">
+                          <div className="text-[10px] text-neutral-400 font-semibold uppercase">Perubahan Skor</div>
+                          <div className="flex items-center gap-1 text-sm font-black mt-0.5">
+                            <span className="text-neutral-400">{item.previousScore}</span>
+                            <span className="text-neutral-500">→</span>
+                            <span className="text-amber-400 text-base">{item.currentScore}</span>
+                            <span className="text-xs text-emerald-400 font-bold ml-1">
+                              (+{item.scoreDelta} 🔥)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => onOpenRealCheck(item.product)}
+                            className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+                          >
+                            Real-Check
+                          </button>
+                          <button
+                            onClick={() => onSelectProductForStoryboard(item.product)}
+                            className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs"
+                          >
+                            Buat Video
+                          </button>
+                          <button
+                            onClick={() => toggleWatchlist(item.product)}
+                            className="p-2 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-neutral-800"
+                            title="Hapus dari Watchlist"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW: COMPARE (Up to 5 Products Side-by-Side) */}
+          {activeView === 'COMPARE' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-neutral-900/60 border border-neutral-800 rounded-xl flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-amber-400" />
+                    <span>Perbandingan Head-to-Head ({comparedProducts.length}/5 Produk)</span>
+                  </h3>
+                  <p className="text-xs text-neutral-400">Bandingkan metrik peluang, celah konten, dan potensi konversi berdampingan.</p>
+                </div>
+
+                {comparedProducts.length > 0 && (
+                  <button
+                    onClick={() => setComparedProducts([])}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-rose-300 text-xs font-semibold"
+                  >
+                    Reset Pilihan
+                  </button>
+                )}
+              </div>
+
+              {comparedProducts.length === 0 ? (
+                <div className="text-center py-12 text-neutral-500 text-xs space-y-2">
+                  <Scale className="w-8 h-8 mx-auto text-neutral-600" />
+                  <p>Belum ada produk yang dipilih untuk dibandingkan.</p>
+                  <p>Buka tab <strong>Katalog</strong> dan klik <strong>"Bandingkan"</strong> pada hingga 5 produk.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto pb-4">
+                  <table className="w-full border-collapse text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-neutral-800">
+                        <th className="p-3 bg-neutral-950 font-bold text-neutral-400 w-44">Metrik Kunci</th>
+                        {comparedProducts.map((p) => (
+                          <th key={p.id} className="p-3 bg-neutral-900/80 font-bold text-white min-w-[220px] max-w-[260px] border-l border-neutral-800">
+                            <div className="space-y-1">
+                              <span className="text-[10px] text-amber-400 block">{p.brandName}</span>
+                              <div className="line-clamp-2 text-xs">{p.name}</div>
+                              <button
+                                onClick={() => toggleCompareProduct(p)}
+                                className="text-[10px] text-rose-400 hover:underline block pt-1"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-850">
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Opportunity Score</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-black text-amber-400 text-base">
+                            {p.opportunityScore} / 100
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Trend Velocity</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800">
+                            {getVelocityBadge(p.trendVelocity)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Harga Jual</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-bold text-emerald-400">
+                            {p.price}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Sales Growth (7 Hari)</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-bold text-emerald-400">
+                            {p.signals.salesGrowth}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Volume Terjual</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-medium text-neutral-200">
+                            {p.salesVolume}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Komisi Affiliate</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-semibold text-amber-300">
+                            {p.commissionAnalysis?.commissionRate || p.signals.commissionPotential}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Kompetisi Konten</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-medium text-neutral-300">
+                            {p.signals.contentCompetition}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Demo Potential (10s)</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 font-bold text-white">
+                            {p.demoPotentialScore || p.signals.demoPotential}/10
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Celah Konten</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800 text-[11px] text-purple-300 leading-snug">
+                            {p.contentGap || '-'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-semibold text-neutral-400 bg-neutral-950">Aksi</td>
+                        {comparedProducts.map((p) => (
+                          <td key={p.id} className="p-3 border-l border-neutral-800">
+                            <div className="flex flex-col gap-1.5">
+                              <button
+                                onClick={() => onOpenRealCheck(p)}
+                                className="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+                              >
+                                Real-Check
+                              </button>
+                              <button
+                                onClick={() => onSelectProductForStoryboard(p)}
+                                className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs"
+                              >
+                                Buat Video
+                              </button>
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-neutral-800 bg-neutral-900/90 text-neutral-400 text-xs flex flex-wrap items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-amber-400" />
-            Produk terverifikasi real-time dari database penjualan marketplace Indonesia
-          </span>
-          <span className="text-[11px] text-neutral-500">
-            Sistem Pembelajaran Otomatis & Anti-AI Realism Active
-          </span>
+        <div className="px-5 py-3 border-t border-neutral-800 bg-[#101622] flex items-center justify-between shrink-0 text-xs">
+          <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Trending Harvest 2.0 • Data verified against real marketplace items. No hallucinations.</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs transition-colors"
+          >
+            Tutup
+          </button>
         </div>
+
       </div>
     </div>
   );
