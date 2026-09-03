@@ -10,6 +10,7 @@ import {
   Check,
   Plus,
   BrainCircuit,
+  Database,
 } from 'lucide-react';
 import { formatDuration } from '../utils/helpers';
 import { Scene } from '../types';
@@ -22,6 +23,7 @@ interface HeaderProps {
   onTitleChange: (newTitle: string) => void;
   onOpenTrendingHarvest: () => void;
   onOpenLearningCenter: () => void;
+  onOpenProductDatabase: () => void;
   onOpenAIGenerator: () => void;
   onOpenHooksModal: () => void;
   onOpenTeleprompter: () => void;
@@ -39,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTitleChange,
   onOpenTrendingHarvest,
   onOpenLearningCenter,
+  onOpenProductDatabase,
   onOpenAIGenerator,
   onOpenHooksModal,
   onOpenTeleprompter,
@@ -156,6 +159,17 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Belajar AI</span>
+          </button>
+
+          {/* Database Produk & Google Flow Prompts */}
+          <button
+            id="header-product-database-btn"
+            onClick={onOpenProductDatabase}
+            className="flex items-center gap-1.5 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/40 hover:border-purple-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
+            title="Database Produk & Google Flow Prompts Tersimpan"
+          >
+            <Database className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">Database Produk</span>
           </button>
 
           {/* AI Generate Button */}

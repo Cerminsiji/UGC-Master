@@ -3,6 +3,11 @@ import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { learningEngine } from './src/server/learningEngine';
+import {
+  productPromptDatabase,
+  buildGoogleFlowScenePrompt,
+  buildGoogleFlowMasterPrompt,
+} from './src/server/productPromptDatabase';
 
 dotenv.config();
 
@@ -231,14 +236,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Category-specific rich fallback generator with dynamic target duration allocation & up to 9 scenes
+// UGC TikTok Style viral caption generator without cart CTA (focus on curiosity, high CTR & buying intent)
 function formatShortCaption(productName: string, category: string = '', usp: string = ''): string {
-  const cleanName = (productName || 'Produk Ini').replace(/\s+/g, ' ').trim().slice(0, 28);
+  const cleanName = (productName || 'Produk Ini').replace(/\s+/g, ' ').trim().slice(0, 26);
   const options = [
-    `Cobain ${cleanName}! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop`,
-    `Stop scrolling! Ini rahasia ${cleanName} yang viral. Checkout sekarang mumpung diskon! 🔥 #TikTokShop #fyp #Viral`,
-    `Jujur ${cleanName} ini worth it banget! Hasilnya terbukti nyata. Link di keranjang kuning ya 🛒 #RacunShop #fyp #Viral`,
-    `Akhirnya nemu ${cleanName}! Praktis & kualitas juara. Cuss amankan di keranjang kuning! ⚡ #TikTokShop #fyp #UGC`,
+    `Gue kira overclaim, pas dicoba sendiri ${cleanName} ternyata beneran senyata ini?! Wajib coba! 😭🔥 #RacunTikTok #fyp #Viral`,
+    `Stop scrolling! Ini alasan kenapa ${cleanName} sliweran terus di FYP dan jadi rebutan! ✨ #TikTokMadeMeBuyIt #fyp #ReviewJujur`,
+    `Jujur ${cleanName} ini penemuan terbaik bulan ini. Kualitasnya jauh ngelampaui harganya! 😍💯 #RacunShop #fyp #ViralIndonesia`,
+    `Pantesan viral di mana-mana, efek ${cleanName} beneran juara & bikin nagih! ⚡ #TikTokShop #fyp #UGCIndonesia`,
+    `Kenapa ga nemu ${cleanName} dari dulu sih? Buat yang punya masalah sama wajib buktikan! 🤫✨ #SpillRacun #fyp #Viral`,
   ];
   const chosen = options[Math.floor(Math.random() * options.length)];
   return chosen.length <= 150 ? chosen : chosen.slice(0, 147) + '...';
@@ -328,12 +334,12 @@ function generateRichFallback(
         notesMood: 'Gaya teks: Green verified badge.',
       },
       {
-        cameraAngle: 'POV Handheld Pointing',
-        visualAction: `Tangan memegang ${safeName} sambil jari telunjuk menunjuk ke sudut kiri bawah layar (arah keranjang kuning).`,
-        popupText: 'BURUAN CHECKOUT DISKON! 🛒',
+        cameraAngle: 'POV Handheld Presentation',
+        visualAction: `Satu tangan memegang produk ${safeName} di tengah frame, dengan lighting fokus tajam ke botol/kemasan asli.`,
+        popupText: 'JANGAN SAMPAI NYESEL! 🔥',
         soundEffect: 'Bell ring & Cha-ching',
-        dialogVO: `Mumpung ada voucher diskon & gratis ongkir, langsung tap keranjang kuning di bawah ya!`,
-        notesMood: 'Gaya teks: Pulsing CTA Button. Urgent offer.',
+        dialogVO: `Kalau kalian nemu ini masih ready stock, mending langsung amankan sebelum kehabisan lagi!`,
+        notesMood: 'Gaya teks: High Urgency Gold Badge. FOMO buy intent.',
       },
     ];
   } else if (visualFocus === 'face') {
@@ -404,11 +410,11 @@ function generateRichFallback(
       },
       {
         cameraAngle: 'Medium Close-up Talking Head',
-        visualAction: `Kreator tersenyum ramah dan mengedipkan mata sambil menunjuk ke arah keranjang kuning di kiri bawah.`,
-        popupText: 'BURUAN CHECKOUT DISKON! 🛒',
+        visualAction: `Kreator tersenyum antusias mendekat ke kamera dengan tatapan meyakinkan dan rekomendasi tulus.`,
+        popupText: 'VIRAL KARENA SEBAGUS INI! 💯',
         soundEffect: 'Bell ring & Cha-ching',
-        dialogVO: `Mumpung ada promo diskon & gratis ongkir, langsung klik keranjang kuning sekarang ya!`,
-        notesMood: 'Gaya teks: Pulsing CTA Button. Urgent call to action.',
+        dialogVO: `Beneran gak heran kenapa produk ini jadi incaran semua orang, hasilnya emang senyata itu!`,
+        notesMood: 'Gaya teks: Pulsing High Conviction. Click & Buy trigger.',
       },
     ];
   } else if (visualFocus === 'full_body') {
@@ -478,12 +484,12 @@ function generateRichFallback(
         notesMood: 'Gaya teks: Green verified badge.',
       },
       {
-        cameraAngle: 'Medium Full Shot CTA',
-        visualAction: `Kreator melangkah maju sambil tersenyum menunjuk jemari ke arah ikon keranjang kuning di kiri bawah.`,
-        popupText: 'BURUAN CHECKOUT DISKON! 🛒',
+        cameraAngle: 'Medium Full Shot High Conviction',
+        visualAction: `Kreator melangkah percaya diri memegang ${safeName} sambil memberikan senyum kepuasan maksimal.`,
+        popupText: 'WAJIB BUKTIIN SENDIRI! ✨',
         soundEffect: 'Bell ring & Cha-ching',
-        dialogVO: `Yuk checkout sekarang mumpung lagi diskon besar dan gratis ongkir di keranjang kuning!`,
-        notesMood: 'Gaya teks: Pulsing CTA Button. Dynamic closing.',
+        dialogVO: `Pokoknya kalau kalian mau ngerasain bedanya, langsung buktikan sendiri sekarang!`,
+        notesMood: 'Gaya teks: Dynamic Verified Badge. High conversion closing.',
       },
     ];
   } else {
@@ -554,12 +560,12 @@ function generateRichFallback(
         notesMood: 'Gaya teks: Green verified badge.',
       },
       {
-        cameraAngle: 'Medium Wide Shot',
-        visualAction: `Kreator tersenyum antusias menunjuk ke pojok kiri bawah (keranjang kuning).`,
-        popupText: 'BURUAN CHECKOUT DISKON! 🛒',
+        cameraAngle: 'Medium Wide Shot High Conviction',
+        visualAction: `Kreator tersenyum puas memegang ${safeName} dengan gesture meyakinkan di depan kamera smartphone.`,
+        popupText: 'WAJIB BUKTIIN SENDIRI! 🔥',
         soundEffect: 'Bell ring & Cha-ching',
-        dialogVO: `Mumpung ada voucher diskon & gratis ongkir, langsung checkout di keranjang kuning ya!`,
-        notesMood: 'Gaya teks: Pulsing CTA Button. Urgent offer.',
+        dialogVO: `Pokoknya kalau kalian mau ngerasain bedanya, langsung buktikan sendiri sebelum kehabisan batch ini!`,
+        notesMood: 'Gaya teks: High Conviction Badge. FOMO buy intent.',
       },
     ];
   }
@@ -612,6 +618,7 @@ function generateRichFallback(
       id: `scene_${Date.now()}_${i + 1}`,
       order: i + 1,
       duration: sceneDuration,
+      googleFlowPrompt: buildGoogleFlowScenePrompt(safeName, '', '', sc as any, visualFocus),
     };
   });
 
@@ -708,12 +715,24 @@ ATURAN WAJIB & MANDATORY PROMPT GUIDELINES (ANTI-AI & PRODUCT CONSISTENCY):
    - BUKAN CGI, BUKAN 3D ANIMATION, BUKAN KARTUN/ANIME, NO ARTIFICIAL AI MORPHING.
    - NO DEFORMED EXTRA FINGERS/HANDS, NO DISTORTED PACKAGING LOGOS, NO ROBOTIC STIFFNESS, NO SYNTHETIC VIDEO SMOOTHING, NO UNCANNY VALLEY ARTIFACTS.
 
-4. STRUKTUR FORMAT STORYBOARD:
-   - Adegan 1: WAJIB HOOK 3 DETIK PERTAMA (Visual Shock / Negative Hook / Curhat Masalah + Audio SFX + On-Screen Text) yang membuat orang langsung berhenti scrolling.
-   - Adegan Tengah: Demonstrasi produk, unboxing/tekstur, pembuktian USP, reaksi nyata sesuai fokus talent (${visualFocus}).
-   - Adegan Terakhir: WAJIB Call To Action (CTA) mendesak ke keranjang kuning / checkout promo.
+4. STRUKTUR FORMAT STORYBOARD & UGC TIKTOK STYLE:
+   - Adegan 1: WAJIB HOOK 3 DETIK PERTAMA (Visual Shock / Curhat Masalah / Negative Hook + Audio SFX + On-Screen Text) yang membuat orang langsung terpaku dan berhenti scrolling.
+   - Adegan Tengah: Demonstrasi produk nyata, unboxing/tekstur asli, pembuktian USP, reaksi kepuasan sesuai fokus talent (${visualFocus}).
+   - Adegan Terakhir & Closing: FOKUS PENUH PADA TIKTOK UGC BUY & CLICK INTENT (Rasa penasaran tinggi, kepuasan luar biasa, dorongan amankan stok sebelum habis / FOMO).
+   - LARANGAN KERAS CTA KERANJANG: DILARANG KERAS menyuruh audiens "cek keranjang kuning", "klik keranjang", "checkout keranjang kuning", atau sejenisnya! Jangan sebut kata keranjang kuning baik di Voice Over, Text Overlay, maupun Caption!
    - Durasi setiap adegan (integer detik) jika dijumlahkan bernilai total mendekati ${targetDuration} detik.
-   - AUTO CAPTION VIRAL DENGAN HASHTAG: Tulis 1 caption postingan media sosial yang sangat menjual lengkap dengan 2-4 hashtag. TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG WAJIB MAKSIMAL 150 KARAKTER!`;
+
+5. SINKRONISASI MUTLAK: TEXT OVERLAY (popupText) & VOICE OVER (dialogVO) & AKSI VISUAL:
+   - popupText (Text Overlay): WAJIB 100% SINKRON dan merupakan highlight langsung dari kata-kata yang diucapkan dalam dialogVO di adegan tersebut! popupText berupa 2-4 kata kapital tebal dengan emoji yang menangkap kata kunci emosional / klaim yang diucapkan (misal: jika VO bilang "3 hari pakai dahi bruntusan langsung kempes", popupText WAJIB: "3 HARI BRUNTUSAN KEMPES?! 😱"). DILARANG teks overlay asal-asalan yang tidak selaras dengan voice over!
+   - dialogVO (Voice): Gaya bahasa kreator UGC TikTok Indonesia yang santai, luwes, meyakinkan ("Kalian wajib tahu", "Jujur kaget banget", "Pantesan viral").
+   - visualAction: Menggambarkan aksi fisik nyata talent berinteraksi dengan produk sesuai referensi foto dan Google Flow.
+   - googleFlowPrompt: Buatkan prompt detail siap pakai untuk Google Flow / Imagen (handheld smartphone POV, kemasan produk asli persis, tekstur kulit natural, aesthetic TikTok, no CGI).
+
+6. AUTO CAPTION VIRAL (MAKSIMAL 150 KARAKTER):
+   - Tulis 1 caption video TikTok yang memicu klik & beli (curiosity gap, kepuasan, FOMO).
+   - TANPA CTA KE KERANJANG KUNING.
+   - Sertakan 2-3 hashtag viral (misal: #RacunTikTok #fyp #Viral).
+   - TOTAL PANJANG WAJIB MAKSIMAL 150 KARAKTER!`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -769,6 +788,10 @@ ATURAN WAJIB & MANDATORY PROMPT GUIDELINES (ANTI-AI & PRODUCT CONSISTENCY):
                   type: Type.INTEGER,
                   description: 'Durasi adegan dalam detik (integer, misal 1, 2, 3, 4, 5).',
                 },
+                googleFlowPrompt: {
+                  type: Type.STRING,
+                  description: 'Prompt detail siap pakai untuk Google Flow / Imagen AI photorealistic image generator (handheld POV, exact packaging, natural lighting, no cgi).',
+                },
               },
               required: [
                 'cameraAngle',
@@ -789,40 +812,109 @@ ATURAN WAJIB & MANDATORY PROMPT GUIDELINES (ANTI-AI & PRODUCT CONSISTENCY):
     const rawText = await generateWithFallback(
       prompt,
       config,
-      'You are an elite UGC video strategist and storyboard scriptwriter. Always return strictly valid JSON matching the schema. Adhere strictly to product reference consistency and anti-AI organic realism. Keep caption under 150 characters.'
+      'You are an elite UGC video strategist and storyboard scriptwriter. Always return strictly valid JSON matching the schema. Synchronize popupText and dialogVO tightly. Adhere strictly to product reference consistency and anti-AI organic realism. Never mention cart/keranjang kuning. Keep caption under 150 characters.'
     );
 
     const parsedData = parseSafeJson<any>(rawText);
-    if (parsedData && Array.isArray(parsedData.scenes) && parsedData.scenes.length > 0) {
-      // Ensure caption is <= 150 chars
-      if (!parsedData.caption || typeof parsedData.caption !== 'string') {
-        parsedData.caption = formatShortCaption(productName, category, keySellingPoints);
-      } else if (parsedData.caption.length > 150) {
-        parsedData.caption = parsedData.caption.slice(0, 147) + '...';
-      }
+    let finalScenes: any[] = [];
+    let finalTitle = '';
+    let finalCaption = '';
 
-      return res.json({
-        success: true,
-        data: parsedData,
-        source: 'gemini',
-      });
+    if (parsedData && Array.isArray(parsedData.scenes) && parsedData.scenes.length > 0) {
+      finalTitle = parsedData.title || `Storyboard ${category} - ${productName}`;
+      finalCaption = parsedData.caption || formatShortCaption(productName, category, keySellingPoints);
+      finalScenes = parsedData.scenes;
+    } else {
+      // High quality offline fallback generator (supports up to 9 scenes & custom duration & visual focus)
+      const fallbackData = generateRichFallback(
+        category,
+        productName,
+        targetDuration,
+        targetAudience,
+        keySellingPoints,
+        targetSceneCount,
+        visualFocus
+      );
+      finalTitle = fallbackData.title;
+      finalCaption = fallbackData.caption;
+      finalScenes = fallbackData.scenes;
     }
 
-    // High quality offline fallback generator (supports up to 9 scenes & custom duration & visual focus)
-    const fallbackData = generateRichFallback(
-      category,
-      productName,
-      targetDuration,
-      targetAudience,
-      keySellingPoints,
-      targetSceneCount,
-      visualFocus
-    );
+    // Clean cart mentions and enrich scenes with Google Flow Prompts and tight text sync
+    finalScenes = finalScenes.map((sc: any, idx: number) => {
+      const cleanVO = (sc.dialogVO || '')
+        .replace(/keranjang\s+kuning/gi, 'rekomendasi viral')
+        .replace(/keranjang\s+oranye/gi, 'rekomendasi viral')
+        .replace(/klik\s+keranjang/gi, 'wajib coba')
+        .replace(/checkout\s+di\s+keranjang/gi, 'amankan sekarang');
+
+      const cleanPopup = (sc.popupText || '')
+        .replace(/keranjang\s+kuning/gi, 'VIRAL')
+        .replace(/checkout/gi, 'COBAIN');
+
+      const gfPrompt =
+        sc.googleFlowPrompt ||
+        buildGoogleFlowScenePrompt(
+          productName,
+          productImageAnalysis?.brandName || '',
+          productImageAnalysis?.visualAppearance || '',
+          sc,
+          visualFocus
+        );
+
+      return {
+        ...sc,
+        order: idx + 1,
+        dialogVO: cleanVO,
+        popupText: cleanPopup,
+        googleFlowPrompt: gfPrompt,
+      };
+    });
+
+    // Clean caption and enforce character limit <= 150 chars without cart CTA
+    finalCaption = (finalCaption || formatShortCaption(productName, category, keySellingPoints))
+      .replace(/keranjang\s+kuning/gi, 'rekomendasi viral')
+      .replace(/klik\s+keranjang/gi, 'wajib buktikan')
+      .replace(/checkout\s+sekarang/gi, 'wajib coba')
+      .trim();
+
+    if (finalCaption.length > 150) {
+      finalCaption = finalCaption.slice(0, 147) + '...';
+    }
+
+    // Auto-track and save into persistent product & Google Flow database
+    let trackedRecord: any = null;
+    try {
+      trackedRecord = productPromptDatabase.createFromStoryboard({
+        productName,
+        brandName: productImageAnalysis?.brandName || '',
+        category,
+        productDescription,
+        keySellingPoints,
+        targetAudience,
+        referenceImage: productImageBase64,
+        productImageAnalysis,
+        visualFocus,
+        caption: finalCaption,
+        scenes: finalScenes,
+      });
+    } catch (dbErr) {
+      console.error('[ProductPromptDatabase] Auto-save error:', dbErr);
+    }
 
     return res.json({
       success: true,
-      data: fallbackData,
-      source: 'smart-template',
+      data: {
+        title: finalTitle,
+        category,
+        productName,
+        caption: finalCaption,
+        scenes: finalScenes,
+        targetAudienceSummary: parsedData?.targetAudienceSummary || targetAudience,
+        hookTip: parsedData?.hookTip || 'Hook 3 detik pertama teroptimasi untuk retensi tinggi & UGC TikTok viral.',
+        trackedProductId: trackedRecord?.id,
+      },
+      source: parsedData ? 'gemini' : 'smart-template',
     });
   } catch (error: any) {
     console.error('Server error in /api/generate-storyboard:', error);
@@ -830,7 +922,7 @@ ATURAN WAJIB & MANDATORY PROMPT GUIDELINES (ANTI-AI & PRODUCT CONSISTENCY):
   }
 });
 
-// Dedicated endpoint to generate / regenerate viral captions <= 150 characters
+// Dedicated endpoint to generate / regenerate viral captions <= 150 characters (TikTok UGC style without cart CTA)
 app.post('/api/generate-caption', async (req, res) => {
   try {
     const {
@@ -838,17 +930,19 @@ app.post('/api/generate-caption', async (req, res) => {
       category = 'UGC',
       keySellingPoints = '',
       targetAudience = '',
-      platform = 'TikTok Shop',
+      platform = 'TikTok',
     } = req.body;
 
-    const prompt = `Buatkan 1 caption postingan media sosial (${platform}) yang super menjual, catchy, ada call-to-action ke keranjang kuning/bio, dan 2-4 hashtag trending untuk:
+    const prompt = `Buatkan 1 caption video ${platform} UGC yang super menjual, catchy, membangkitkan rasa penasaran & dorongan beli (click & buy intent), TANPA PERLU MENAMBAHKAN CTA KE KERANJANG KUNING/ORANYE/CHECKOUT, lengkap dengan 2-3 hashtag viral untuk:
 Produk: ${productName}
 Kategori: ${category}
 USP: ${keySellingPoints}
 Target Audiens: ${targetAudience}
 
 ATURAN PALING KRUSIAL:
-TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KARAKTER (Character Count <= 150).`;
+1. JANGAN PERNAH MENYEBUT 'keranjang kuning', 'keranjang oranye', 'klik keranjang', atau 'checkout di keranjang'!
+2. FOKUS: Curiosity gap, hasil nyata, rasa puas luar biasa, atau FOMO sebelum kehabisan.
+3. TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KARAKTER (Character Count <= 150).`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -857,7 +951,7 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
         properties: {
           caption: {
             type: Type.STRING,
-            description: 'Caption lengkap dengan hashtag (MAKSIMAL 150 KARAKTER)',
+            description: 'Caption lengkap dengan 2-3 hashtag (MAKSIMAL 150 KARAKTER, TANPA CTA KERANJANG)',
           },
           characterCount: {
             type: Type.INTEGER,
@@ -876,11 +970,16 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
     const raw = await generateWithFallback(
       prompt,
       config,
-      'You are an expert social media copywriter. Keep caption length strictly under 150 characters.'
+      'You are an expert social media copywriter. Keep caption length strictly under 150 characters. Do not mention cart or keranjang kuning.'
     );
 
     const parsed = parseSafeJson<any>(raw);
-    let finalCaption = parsed?.caption || formatShortCaption(productName, category, keySellingPoints);
+    let finalCaption = (parsed?.caption || formatShortCaption(productName, category, keySellingPoints))
+      .replace(/keranjang\s+kuning/gi, 'rekomendasi viral')
+      .replace(/klik\s+keranjang/gi, 'wajib buktikan')
+      .replace(/checkout\s+sekarang/gi, 'wajib coba')
+      .trim();
+
     if (finalCaption.length > 150) {
       finalCaption = finalCaption.slice(0, 147) + '...';
     }
@@ -889,7 +988,7 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
       success: true,
       caption: finalCaption,
       characterCount: finalCaption.length,
-      hashtags: parsed?.hashtags || ['#RacunTikTok', '#fyp', '#TikTokShop'],
+      hashtags: parsed?.hashtags || ['#RacunTikTok', '#fyp', '#Viral'],
     });
   } catch (error: any) {
     const fallbackCaption = formatShortCaption(req.body?.productName || 'Produk');
@@ -897,7 +996,7 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
       success: true,
       caption: fallbackCaption,
       characterCount: fallbackCaption.length,
-      hashtags: ['#RacunTikTok', '#fyp', '#TikTokShop'],
+      hashtags: ['#RacunTikTok', '#fyp', '#Viral'],
     });
   }
 });
@@ -2192,6 +2291,75 @@ Tugas Anda:
   } catch (error: any) {
     console.error('Server error in /api/auto-detect-product:', error);
     res.status(500).json({ error: error.message || 'Gagal mendeteksi link produk' });
+  }
+});
+
+// ==========================================
+// TRACKED PRODUCTS & GOOGLE FLOW PROMPT DATABASE APIS
+// ==========================================
+
+// Get all tracked products with optional search and category filter
+app.get('/api/tracked-products', (req, res) => {
+  try {
+    const { q = '', category = '' } = req.query;
+    const records = productPromptDatabase.search(String(q), String(category));
+    return res.json({
+      success: true,
+      data: records,
+      total: records.length,
+    });
+  } catch (error: any) {
+    console.error('Error fetching tracked products:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch tracked products' });
+  }
+});
+
+// Get single tracked product by ID
+app.get('/api/tracked-products/:id', (req, res) => {
+  try {
+    const record = productPromptDatabase.getById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ error: 'Produk tidak ditemukan dalam database' });
+    }
+    return res.json({
+      success: true,
+      data: record,
+    });
+  } catch (error: any) {
+    console.error('Error fetching tracked product by id:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch tracked product' });
+  }
+});
+
+// Save or update tracked product
+app.post('/api/tracked-products', (req, res) => {
+  try {
+    const { record } = req.body;
+    if (!record || !record.name) {
+      return res.status(400).json({ error: 'Data produk tidak valid' });
+    }
+    const saved = productPromptDatabase.save(record);
+    return res.json({
+      success: true,
+      data: saved,
+    });
+  } catch (error: any) {
+    console.error('Error saving tracked product:', error);
+    return res.status(500).json({ error: error.message || 'Failed to save tracked product' });
+  }
+});
+
+// Delete tracked product
+app.delete('/api/tracked-products/:id', (req, res) => {
+  try {
+    const deleted = productPromptDatabase.delete(req.params.id);
+    return res.json({
+      success: true,
+      deleted,
+    });
+  } catch (error: any) {
+    console.error('Error deleting tracked product:', error);
+    return res.status(500).json({ error: error.message || 'Failed to delete tracked product' });
   }
 });
 

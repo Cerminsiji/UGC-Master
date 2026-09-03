@@ -13,9 +13,12 @@ import {
   Trash2,
   Sparkles,
   ChevronDown,
+  ChevronUp,
   Plus,
   Minus,
-  Check
+  Check,
+  Wand2,
+  ImageIcon
 } from 'lucide-react';
 import { Scene } from '../types';
 import { CAMERA_ANGLE_PRESETS, SFX_PRESETS, MOOD_PRESETS } from '../data/categories';
@@ -48,6 +51,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   const [showAngleMenu, setShowAngleMenu] = useState(false);
   const [showSfxMenu, setShowSfxMenu] = useState(false);
   const [showMoodMenu, setShowMoodMenu] = useState(false);
+  const [showFlowPrompt, setShowFlowPrompt] = useState(false);
+  const [copiedFlow, setCopiedFlow] = useState(false);
 
   const handleChange = (field: keyof Scene, value: any) => {
     onUpdate({
@@ -59,6 +64,23 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   const handleDurationChange = (delta: number) => {
     const newDuration = Math.max(1, Math.min(60, (Number(scene.duration) || 1) + delta));
     handleChange('duration', newDuration);
+  };
+
+  const handleSyncOverlayFromVoice = () => {
+    if (!scene.dialogVO) return;
+    const cleaned = scene.dialogVO
+      .replace(/^(stop scrolling|kalian wajib tahu|jujur kaget|pantesan viral)[\s,!.-]*/gi, '')
+      .trim();
+    const words = (cleaned || scene.dialogVO).split(/[,.!?]/)[0].trim().split(/\s+/).slice(0, 4).join(' ');
+    const emoji = index === 0 ? '😱' : index === totalScenes - 1 ? '🔥' : '✨';
+    handleChange('popupText', `${words.toUpperCase()}! ${emoji}`);
+  };
+
+  const handleCopyFlowPrompt = () => {
+    const text = scene.googleFlowPrompt || scene.visualAction;
+    navigator.clipboard.writeText(text);
+    setCopiedFlow(true);
+    setTimeout(() => setCopiedFlow(false), 2000);
   };
 
   return (
@@ -222,10 +244,23 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           
           {/* Teks Pop-up (Layar) */}
           <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              <Type className="w-3 h-3 text-sky-400" />
-              <span>TEKS POP-UP (LAYAR)</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <Type className="w-3 h-3 text-sky-400" />
+                <span>TEKS POP-UP (LAYAR)</span>
+              </label>
+              {scene.dialogVO && (
+                <button
+                  type="button"
+                  onClick={handleSyncOverlayFromVoice}
+                  className="text-[10px] text-sky-300 hover:text-sky-200 flex items-center gap-1 bg-sky-950/50 hover:bg-sky-900/60 border border-sky-600/40 px-1.5 py-0.5 rounded transition-colors"
+                  title="Sinkronkan teks overlay langsung dari intisari dialog voice over"
+                >
+                  <Wand2 className="w-2.5 h-2.5" />
+                  <span>Sync VO</span>
+                </button>
+              )}
+            </div>
             <input
               type="text"
               value={scene.popupText}
@@ -397,6 +432,58 @@ export const SceneCard: React.FC<SceneCardProps> = ({
             </div>
           </div>
 
+        </div>
+
+        {/* ROW 4: Google Flow Prompt & Image Generator Assistant */}
+        <div className="pt-2 border-t border-[#1a2337]/80 mt-1">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowFlowPrompt(!showFlowPrompt)}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-purple-300 hover:text-purple-200 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>GOOGLE FLOW & IMAGEN PROMPT</span>
+              <span className="bg-purple-950/80 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30">
+                Visual Consistency
+              </span>
+              {showFlowPrompt ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyFlowPrompt}
+              className="flex items-center gap-1 text-[10px] font-semibold text-purple-300 hover:text-purple-200 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
+              title="Salin prompt Google Flow untuk adegan ini"
+            >
+              {copiedFlow ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-300">Tersalin!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3" />
+                  <span>Copy Flow Prompt</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {showFlowPrompt && (
+            <div className="mt-2 bg-[#0c101a] border border-[#1d273f] rounded-xl p-3 space-y-1.5 animate-fadeIn">
+              <div className="flex items-center justify-between text-[10px] text-slate-400">
+                <span>Prompt photorealistic sesuai referensi kemasan & konsistensi Google Flow:</span>
+              </div>
+              <textarea
+                rows={2}
+                value={scene.googleFlowPrompt || ''}
+                onChange={(e) => handleChange('googleFlowPrompt', e.target.value)}
+                placeholder="smartphone handheld POV, authentic packaging of product, realistic lighting, organic human skin texture, TikTok UGC aesthetic --no cgi, 3d render"
+                className="w-full bg-[#111726] border border-[#1f2b43] focus:border-purple-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-purple-200 placeholder-slate-500 outline-none transition-colors resize-y leading-relaxed"
+              />
+            </div>
+          )}
         </div>
 
       </div>

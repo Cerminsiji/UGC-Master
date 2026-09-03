@@ -8,6 +8,7 @@ export interface Scene {
   dialogVO: string;
   notesMood: string;
   duration: number; // in seconds
+  googleFlowPrompt?: string; // Prompt for Google Flow AI image/video generator
 }
 
 export interface UGCTemplateCategory {
@@ -159,3 +160,35 @@ export interface CreatorLearningMemory {
   winningPriceBracket: string;
   lastUpdated: string;
 }
+
+export interface GoogleFlowScenePrompt {
+  sceneOrder: number;
+  cameraAngle: string;
+  visualAction: string;
+  dialogVO: string;
+  popupText: string;
+  googleFlowPrompt: string;
+  negativePrompt?: string;
+}
+
+export interface TrackedProductRecord {
+  id: string;
+  name: string;
+  brandName?: string;
+  category: string;
+  productDescription?: string;
+  keySellingPoints?: string;
+  targetAudience?: string;
+  price?: string;
+  sourceUrl?: string;
+  referenceImage?: string; // base64 or url
+  productImageAnalysis?: ProductImageAnalysis;
+  googleFlowMasterPrompt: string;
+  googleFlowScenePrompts: GoogleFlowScenePrompt[];
+  caption?: string; // Viral caption under 150 chars without cart CTA
+  tags?: string[];
+  scenes: Scene[];
+  createdAt: string;
+  updatedAt: string;
+}
+

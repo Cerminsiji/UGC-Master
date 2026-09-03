@@ -9,8 +9,9 @@ import { MarketLearningCenterModal } from './components/MarketLearningCenterModa
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { ExportModal } from './components/ExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { ProductTrackingDatabaseModal } from './components/ProductTrackingDatabaseModal';
 import { UGC_CATEGORIES } from './data/categories';
-import { Scene, StoryboardProject, UGCTemplateCategory, AIGenerateParams, AIHookOption, TrendingProduct, ProductImageAnalysis } from './types';
+import { Scene, StoryboardProject, UGCTemplateCategory, AIGenerateParams, AIHookOption, TrendingProduct, ProductImageAnalysis, TrackedProductRecord } from './types';
 import { copyToClipboard, generateId } from './utils/helpers';
 import {
   Plus,
@@ -27,6 +28,7 @@ import {
   Activity,
   Layers,
   ShoppingBag,
+  Database,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'ugc_master_projects_v1';
@@ -40,7 +42,7 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
   productName: 'Sago Green Coffee',
   targetAudience: 'Pria/wanita diet & sehat',
   visualFocus: 'mix',
-  caption: 'Cobain Sago Green Coffee! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop',
+  caption: 'Gak nyangka nemu ini pas lagi buntu cari kopi sehat, perut buncit berangsur kempes & badan enteng banget! 😭✨ #GreenCoffee #DietSehat #fyp',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   scenes: [
@@ -121,6 +123,7 @@ export default function App() {
   // Modals state
   const [isTrendingHarvestOpen, setIsTrendingHarvestOpen] = useState(false);
   const [isLearningCenterOpen, setIsLearningCenterOpen] = useState(false);
+  const [isProductDatabaseOpen, setIsProductDatabaseOpen] = useState(false);
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
   const [isHooksModalOpen, setIsHooksModalOpen] = useState(false);
   const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false);
@@ -562,6 +565,50 @@ export default function App() {
     showToast('Project telah dihapus.');
   };
 
+  const handleLoadTrackedProductIntoStoryboard = (record: TrackedProductRecord) => {
+    const matchedCategory =
+      UGC_CATEGORIES.find(
+        (c) =>
+          c.name.toLowerCase() === record.category.toLowerCase() ||
+          record.category.toLowerCase().includes(c.name.toLowerCase())
+      ) || UGC_CATEGORIES[8];
+
+    const newProj: StoryboardProject = {
+      id: `proj_${Date.now()}`,
+      title: `Storyboard ${record.name}`,
+      categoryId: matchedCategory.id,
+      productName: record.name,
+      targetAudience: record.targetAudience || 'Target Audience TikTok Shop',
+      visualFocus: 'mix',
+      caption: record.caption || `Gak nyangka nemu ini pas lagi butuh solusi, hasilnya beneran kerasa banget! #fyp #RacunTikTok`,
+      productImage: record.referenceImage,
+      productAnalysis: record.productImageAnalysis,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      scenes:
+        record.scenes && record.scenes.length > 0
+          ? record.scenes
+          : [
+              {
+                id: generateId(),
+                order: 1,
+                cameraAngle: 'POV Handheld Close-up',
+                visualAction: `Kreator menunjukkan ${record.name}, ekspresi kaget penasaran.`,
+                popupText: 'JANGAN SKIP DULU! 😱',
+                soundEffect: 'Record scratch & Vine boom',
+                dialogVO: `Stop scrolling! Buat kalian yang cari ${record.name}, ini solusinya!`,
+                notesMood: 'Gaya teks: Bold Headline.',
+                duration: 3,
+                googleFlowPrompt: record.googleFlowMasterPrompt,
+              },
+            ],
+    };
+
+    setProjects((prev) => [newProj, ...prev]);
+    setCurrentProjectId(newProj.id);
+    showToast(`Berhasil memuat produk "${record.name}" beserta ${record.scenes?.length || 0} adegan prompt Google Flow!`);
+  };
+
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       
@@ -574,6 +621,7 @@ export default function App() {
         onTitleChange={handleTitleChange}
         onOpenTrendingHarvest={() => setIsTrendingHarvestOpen(true)}
         onOpenLearningCenter={() => setIsLearningCenterOpen(true)}
+        onOpenProductDatabase={() => setIsProductDatabaseOpen(true)}
         onOpenAIGenerator={() => setIsAIGeneratorOpen(true)}
         onOpenHooksModal={() => setIsHooksModalOpen(true)}
         onOpenTeleprompter={() => setIsTeleprompterOpen(true)}
@@ -859,6 +907,18 @@ export default function App() {
         onCreateNewProject={handleCreateNewProject}
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
+      />
+
+      <ProductTrackingDatabaseModal
+        isOpen={isProductDatabaseOpen}
+        onClose={() => setIsProductDatabaseOpen(false)}
+        onLoadIntoStoryboard={handleLoadTrackedProductIntoStoryboard}
+        currentStoryboardData={{
+          productName: currentProject.productName,
+          category: activeCategory.name,
+          caption: currentProject.caption,
+          scenes: currentProject.scenes,
+        }}
       />
 
     </div>
