@@ -1,62 +1,56 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
-  Copy,
-  Settings,
   Tv,
   Download,
   Flame,
   FolderOpen,
-  Check,
   Plus,
-  BrainCircuit,
-  Database,
-  ShieldCheck,
+  LayoutGrid,
+  FileSpreadsheet,
+  Smartphone,
+  Camera,
+  Coins,
+  Pencil,
+  Code,
+  Check
 } from 'lucide-react';
 import { formatDuration } from '../utils/helpers';
-import { Scene } from '../types';
+import { Scene, StoryboardViewMode } from '../types';
 
 interface HeaderProps {
   title: string;
   categoryName: string;
   categoryBadge: string;
   scenes: Scene[];
+  viewMode: StoryboardViewMode;
+  onViewModeChange: (mode: StoryboardViewMode) => void;
   onTitleChange: (newTitle: string) => void;
-  onOpenTrendingHarvest: () => void;
-  onOpenMarketRealCheck: () => void;
-  onOpenLearningCenter: () => void;
-  onOpenProductDatabase: () => void;
   onOpenAIGenerator: () => void;
   onOpenHooksModal: () => void;
   onOpenTeleprompter: () => void;
   onOpenExportModal: () => void;
   onOpenProjectsModal: () => void;
-  onCopyJSON: () => void;
-  copiedJSON: boolean;
   onAddScene: () => void;
-  onAutoOptimize?: () => void;
-  isAutoOptimizing?: boolean;
+  onCopyJSON?: () => void;
+  isJsonCopied?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title,
   categoryBadge,
   scenes,
+  viewMode,
+  onViewModeChange,
   onTitleChange,
-  onOpenTrendingHarvest,
-  onOpenMarketRealCheck,
-  onOpenLearningCenter,
-  onOpenProductDatabase,
   onOpenAIGenerator,
   onOpenHooksModal,
   onOpenTeleprompter,
   onOpenExportModal,
   onOpenProjectsModal,
-  onCopyJSON,
-  copiedJSON,
   onAddScene,
-  onAutoOptimize,
-  isAutoOptimizing = false,
+  onCopyJSON,
+  isJsonCopied,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
@@ -73,26 +67,26 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#0c1017]/95 backdrop-blur-md border-b border-[#1f293d] px-4 lg:px-6 py-3">
-      <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <header className="sticky top-0 z-30 bg-[#0a0e17]/95 backdrop-blur-md border-b border-[#1b253b] px-4 lg:px-6 py-2.5">
+      <div className="max-w-[1700px] mx-auto flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
         
-        {/* Left Side: Brand Logo & Current Storyboard Title */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 pr-4 border-r border-[#1f293d]/80">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-purple-900/30 text-white font-black text-lg">
+        {/* Left: Brand Identity & Active Storyboard Title */}
+        <div className="flex items-center justify-between xl:justify-start gap-3.5">
+          <div className="flex items-center gap-2.5 pr-3.5 border-r border-[#1e293f]">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-purple-900/40">
               U
             </div>
             <div>
-              <div className="text-white font-bold text-sm tracking-tight leading-none">
-                UGC Master
+              <div className="text-white font-extrabold text-sm tracking-tight leading-none">
+                UGC Studio
               </div>
-              <div className="text-[10px] font-semibold tracking-wider text-purple-400/90 uppercase mt-0.5">
-                CREATOR STUDIO
+              <div className="text-[9px] font-semibold text-purple-400 tracking-wider uppercase mt-0.5">
+                Affiliate Storyboard
               </div>
             </div>
           </div>
 
-          {/* Title & Tag */}
+          {/* Editable Title */}
           <div className="flex flex-col">
             {isEditingTitle ? (
               <input
@@ -108,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }
                 }}
                 autoFocus
-                className="text-base font-bold text-white bg-[#161f30] border border-purple-500 rounded px-2 py-0.5 outline-none"
+                className="text-sm md:text-base font-bold text-white bg-[#141c2c] border border-purple-500 rounded-lg px-2.5 py-0.5 outline-none"
               />
             ) : (
               <div
@@ -117,174 +111,185 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsEditingTitle(true);
                 }}
                 className="group flex items-center gap-2 cursor-pointer"
-                title="Klik untuk mengubah judul"
+                title="Klik untuk mengganti nama naskah"
               >
-                <h1 className="text-white font-bold text-base md:text-lg tracking-tight group-hover:text-purple-300 transition-colors">
+                <h1 className="text-white font-bold text-sm md:text-base tracking-tight group-hover:text-purple-300 transition-colors line-clamp-1 max-w-[240px] sm:max-w-xs md:max-w-sm">
                   {title}
                 </h1>
-                <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                  ✎
-                </span>
+                <Pencil className="w-3 h-3 text-slate-500 group-hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
-            <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mt-0.5">
-              {categoryBadge}
-            </span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[9px] font-bold text-purple-400 bg-purple-950/80 border border-purple-800/40 px-1.5 py-0.2 rounded uppercase tracking-wider">
+                {categoryBadge}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                • {scenes.length} Adegan
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Right Side: Total Duration & Action Buttons */}
-        <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
+        {/* Center: Creator Workflow Switcher (5 Dedicated Tools) */}
+        <div className="flex items-center self-start xl:self-center bg-[#101625] border border-[#1e293f] p-1 rounded-xl shadow-inner overflow-x-auto max-w-full custom-scrollbar">
+          <button
+            onClick={() => onViewModeChange('cards')}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'cards'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Editor Adegan</span>
+          </button>
+
+          <button
+            onClick={() => onViewModeChange('table')}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'table'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Tabel Naskah</span>
+          </button>
+
+          <button
+            onClick={() => onViewModeChange('phone_preview')}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'phone_preview'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Simulasi 9:16</span>
+          </button>
+
+          <button
+            onClick={() => onViewModeChange('shot_list')}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'shot_list'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Shot-List Syuting</span>
+          </button>
+
+          <button
+            onClick={() => onViewModeChange('rate_card')}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+              viewMode === 'rate_card'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span>Rate Card UGC</span>
+          </button>
+        </div>
+
+        {/* Right: Tools & Primary Actions */}
+        <div className="flex items-center flex-wrap gap-2 justify-end">
           
-          {/* Total Duration Widget */}
-          <div className="flex items-center gap-2 bg-[#121926] border border-[#212d44] rounded-lg px-2.5 py-1.5 shadow-sm">
+          {/* Duration Counter Pill */}
+          <div
+            className="flex items-center gap-1.5 bg-[#101726] border border-[#1e2a42] rounded-xl px-2.5 py-1 text-xs"
+            title="Total durasi semua adegan"
+          >
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              DURASI
+              Total:
             </span>
-            <span className="font-mono font-bold text-xs sm:text-sm text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800/40 tracking-wider">
+            <span className="font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.5 rounded text-xs">
               {formatDuration(totalDuration)}
             </span>
           </div>
 
-          {/* Trending Harvest Button */}
+          {/* Quick Viral Hooks */}
           <button
-            id="header-trending-harvest-btn"
-            onClick={onOpenTrendingHarvest}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-rose-500/20 hover:from-amber-500/30 hover:to-rose-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Buka Trending Harvest 2.0 (Growth Velocity & Celah Konten)"
-          >
-            <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>Trending Harvest</span>
-          </button>
-
-          {/* Market Real-Check 2.0 Button */}
-          <button
-            id="header-market-real-check-btn"
-            onClick={onOpenMarketRealCheck}
-            className="flex items-center gap-1.5 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/40 hover:border-purple-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Buka Market Real-Check 2.0 (Validasi Kelayakan & Celah Konten)"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-            <span>Real-Check 2.0</span>
-          </button>
-
-          {/* Market & User Learning Center Button */}
-          <button
-            id="header-learning-center-btn"
-            onClick={onOpenLearningCenter}
-            className="flex items-center gap-1.5 bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-300 hover:text-indigo-200 border border-indigo-500/40 hover:border-indigo-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Pusat Pembelajaran AI Pasar & Feedback User"
-          >
-            <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">Belajar AI</span>
-          </button>
-
-          {/* Database Produk & Google Flow Prompts */}
-          <button
-            id="header-product-database-btn"
-            onClick={onOpenProductDatabase}
-            className="flex items-center gap-1.5 bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/40 hover:border-purple-400 text-xs font-bold px-3 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Database Produk & Google Flow Prompts Tersimpan"
-          >
-            <Database className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Database Produk</span>
-          </button>
-
-          {/* AI Auto Optimize Button (V2.0 1-Click Engine) */}
-          {onAutoOptimize && (
-            <button
-              id="header-ai-auto-optimize-btn"
-              onClick={onAutoOptimize}
-              disabled={isAutoOptimizing}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-extrabold px-3 py-2 rounded-lg shadow-md shadow-emerald-950/50 transition-all active:scale-95 border border-emerald-400/40 disabled:opacity-50"
-              title="1-Click AI Auto Optimize (Product Intelligence, 10s Retention, Audit & Scores)"
-            >
-              <Sparkles className={`w-3.5 h-3.5 text-emerald-200 ${isAutoOptimizing ? 'animate-spin' : ''}`} />
-              <span>{isAutoOptimizing ? 'Optimizing...' : 'AI Auto Optimize'}</span>
-            </button>
-          )}
-
-          {/* AI Generate Button */}
-          <button
-            id="header-ai-generate-btn"
-            onClick={onOpenAIGenerator}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow-md shadow-purple-900/30 transition-all active:scale-95 border border-purple-400/30"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-            <span>AI Generate</span>
-          </button>
-
-          {/* Quick Viral Hook Helper */}
-          <button
-            id="header-viral-hooks-btn"
             onClick={onOpenHooksModal}
-            className="flex items-center gap-1.5 bg-[#151c2d] hover:bg-[#1e2840] text-amber-300 hover:text-amber-200 border border-amber-500/30 hover:border-amber-500/50 text-xs font-semibold px-2.5 py-2 rounded-lg transition-all shadow-sm active:scale-95"
-            title="Pilih Variasi Hook 3 Detik Viral"
+            className="flex items-center gap-1 bg-[#121927] hover:bg-[#1b253b] text-amber-300 border border-amber-500/30 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm"
+            title="Pilih variasi hook 3 detik viral"
           >
             <Flame className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Viral Hooks</span>
+            <span className="hidden sm:inline">Hook 3s</span>
           </button>
 
-          {/* Copy JSON Button */}
-          <button
-            onClick={onCopyJSON}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-all active:scale-95 border ${
-              copiedJSON
-                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
-                : 'bg-[#151c2d] hover:bg-[#1d273f] text-slate-200 border-[#222e47]'
-            }`}
-            title="Salin data storyboard sebagai JSON"
-          >
-            {copiedJSON ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Tersalin!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5 text-slate-300" />
-                <span>Copy JSON</span>
-              </>
-            )}
-          </button>
-
-          {/* Teleprompter / Shooting Companion Button */}
+          {/* Teleprompter for Shooting */}
           <button
             onClick={onOpenTeleprompter}
-            className="flex items-center gap-1.5 bg-[#151c2d] hover:bg-[#1d273f] text-slate-200 border border-[#222e47] text-xs font-semibold px-3 py-2 rounded-lg transition-all active:scale-95"
-            title="Mode Teleprompter & Recording Player"
+            className="flex items-center gap-1 bg-[#121927] hover:bg-[#1b253b] text-indigo-300 border border-indigo-500/30 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95"
+            title="Buka Teleprompter layar penuh untuk rekam video"
           >
             <Tv className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden xl:inline">Teleprompter</span>
           </button>
 
-          {/* Export Button */}
+          {/* 1-Click Direct Copy JSON Storyboard */}
+          {onCopyJSON && (
+            <button
+              onClick={onCopyJSON}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm border ${
+                isJsonCopied
+                  ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
+                  : 'bg-[#121927] hover:bg-purple-950/40 text-purple-300 hover:text-white border-purple-500/40'
+              }`}
+              title="Salin data struktur JSON lengkap Storyboard ke Clipboard (1 Klik)"
+            >
+              {isJsonCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="font-bold">JSON Tersalin!</span>
+                </>
+              ) : (
+                <>
+                  <Code className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="font-bold">Copy JSON</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Export / Share Modal */}
           <button
             onClick={onOpenExportModal}
-            className="flex items-center gap-1.5 bg-[#151c2d] hover:bg-[#1d273f] text-slate-200 border border-[#222e47] text-xs font-semibold px-3 py-2 rounded-lg transition-all active:scale-95"
-            title="Export Script / PDF / TXT"
+            className="flex items-center gap-1 bg-[#121927] hover:bg-[#1b253b] text-slate-200 border border-[#222e47] text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95"
+            title="Download PDF, Naskah TXT, CapCut Cue, atau kelola JSON"
           >
             <Download className="w-3.5 h-3.5 text-slate-300" />
-            <span className="hidden xl:inline">Export</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
 
           {/* Project Manager Button */}
           <button
             onClick={onOpenProjectsModal}
-            className="p-2 rounded-lg bg-[#151c2d] hover:bg-[#1d273f] text-slate-300 border border-[#222e47] transition-all active:scale-95"
-            title="Kelola Project & Template Tersimpan"
+            className="p-1.5 rounded-xl bg-[#121927] hover:bg-[#1b253b] text-slate-300 border border-[#222e47] transition-all active:scale-95"
+            title="Kelola & ganti project naskah"
           >
             <FolderOpen className="w-4 h-4" />
           </button>
 
-          {/* Quick Add Scene Mobile/Desktop */}
+          {/* Primary AI Generator */}
+          <button
+            onClick={onOpenAIGenerator}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-md shadow-purple-950/50 transition-all active:scale-95 border border-purple-400/30"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+            <span>AI Generate</span>
+          </button>
+
+          {/* Quick Add Scene */}
           <button
             onClick={onAddScene}
-            className="flex items-center gap-1 bg-purple-700/60 hover:bg-purple-600 text-purple-100 border border-purple-500/40 text-xs font-semibold px-2.5 py-2 rounded-lg transition-all active:scale-95"
-            title="Tambah Adegan Baru"
+            className="flex items-center gap-1 bg-purple-900/60 hover:bg-purple-800 text-purple-100 border border-purple-600/40 text-xs font-bold px-2.5 py-1.5 rounded-xl transition-all active:scale-95"
+            title="Tambah adegan baru"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Adegan</span>
+            <span className="hidden md:inline">Adegan</span>
           </button>
 
         </div>

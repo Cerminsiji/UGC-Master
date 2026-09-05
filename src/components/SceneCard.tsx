@@ -13,15 +13,21 @@ import {
   Trash2,
   Sparkles,
   ChevronDown,
-  ChevronUp,
   Plus,
   Minus,
   Check,
-  Wand2,
-  ImageIcon
+  Flame,
+  AlertCircle,
+  Layers
 } from 'lucide-react';
-import { Scene } from '../types';
-import { CAMERA_ANGLE_PRESETS, SFX_PRESETS, MOOD_PRESETS } from '../data/categories';
+import { Scene, HookVariant } from '../types';
+import {
+  CAMERA_ANGLE_PRESETS,
+  SFX_PRESETS,
+  SFX_CATEGORIES,
+  VO_TONE_PRESETS,
+  MOOD_PRESETS,
+} from '../data/categories';
 
 interface SceneCardProps {
   scene: Scene;
@@ -33,7 +39,12 @@ interface SceneCardProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onEnhanceAI: (scene: Scene) => void;
+  onOpenHooksModal?: () => void;
   isEnhancing?: boolean;
+  hookVariants?: HookVariant[];
+  activeHookIndex?: number;
+  onSelectHookVariant?: (variantIndex: number) => void;
+  onAddHookVariant?: () => void;
 }
 
 export const SceneCard: React.FC<SceneCardProps> = ({
@@ -46,13 +57,18 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   onDuplicate,
   onDelete,
   onEnhanceAI,
+  onOpenHooksModal,
   isEnhancing = false,
+  hookVariants = [],
+  activeHookIndex = 0,
+  onSelectHookVariant,
+  onAddHookVariant,
 }) => {
   const [showAngleMenu, setShowAngleMenu] = useState(false);
   const [showSfxMenu, setShowSfxMenu] = useState(false);
   const [showMoodMenu, setShowMoodMenu] = useState(false);
-  const [showFlowPrompt, setShowFlowPrompt] = useState(false);
-  const [copiedFlow, setCopiedFlow] = useState(false);
+  const [showVoMenu, setShowVoMenu] = useState(false);
+  const [selectedSfxCat, setSelectedSfxCat] = useState<string>('Semua');
 
   const handleChange = (field: keyof Scene, value: any) => {
     onUpdate({
@@ -66,461 +82,525 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     handleChange('duration', newDuration);
   };
 
-  const handleSyncOverlayFromVoice = () => {
-    if (!scene.dialogVO) return;
-    const cleaned = scene.dialogVO
-      .replace(/^(stop scrolling|kalian wajib tahu|jujur kaget|pantesan viral)[\s,!.-]*/gi, '')
-      .trim();
-    const words = (cleaned || scene.dialogVO).split(/[,.!?]/)[0].trim().split(/\s+/).slice(0, 4).join(' ');
-    const emoji = index === 0 ? '😱' : index === totalScenes - 1 ? '🔥' : '✨';
-    handleChange('popupText', `${words.toUpperCase()}! ${emoji}`);
-  };
-
-  const handleCopyFlowPrompt = () => {
-    const text = scene.googleFlowPrompt || scene.visualAction;
-    navigator.clipboard.writeText(text);
-    setCopiedFlow(true);
-    setTimeout(() => setCopiedFlow(false), 2000);
-  };
+  // Dialog Speech Pacing Calculator (Standard Indo speech ~2.5 - 3 words per second)
+  const dialogWords = (scene.dialogVO || '').trim().split(/\s+/).filter(Boolean);
+  const wordCount = dialogWords.length;
+  const currentDuration = Number(scene.duration) || 3;
+  const estimatedSeconds = wordCount > 0 ? (wordCount / 2.7).toFixed(1) : '0';
+  const isTooFast = wordCount > 0 && wordCount / currentDuration > 3.8;
 
   return (
     <div
       id={`scene-card-${scene.id}`}
-      className="bg-[#101623] hover:bg-[#121927] border border-[#1d273c] hover:border-[#2b3a59] rounded-2xl p-4 md:p-5 transition-all shadow-lg shadow-black/30 relative group"
+      className={`bg-[#0f1422] border rounded-2xl p-4 sm:p-5 transition-all shadow-xl relative ${
+        index === 0
+          ? 'border-purple-600/60 shadow-purple-950/20'
+          : 'border-[#1e293f] hover:border-[#2b3a58]'
+      }`}
     >
-      {/* Card Header matching the purple ADEGAN badge & right buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-[#1b253a]/80">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="bg-gradient-to-r from-purple-900/80 to-indigo-900/80 text-purple-300 border border-purple-500/40 text-[11px] font-extrabold px-3 py-1 rounded-md uppercase tracking-wider shadow-sm">
+      {/* Card Header: Scene Number Badge, Scene Type, Timing Stepper, and Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-[#1c273e]">
+        <div className="flex items-center flex-wrap gap-2">
+          {/* Adegan Badge */}
+          <span className="bg-gradient-to-r from-purple-800 to-indigo-800 text-purple-200 border border-purple-500/50 text-xs font-black px-3 py-1 rounded-lg uppercase tracking-wider shadow-sm">
             ADEGAN {index + 1}
           </span>
-          <span className="bg-cyan-950/80 text-cyan-300 border border-cyan-600/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-            {scene.timeRange || (index === 0 ? '[0–2s]' : index === 1 ? '[2–5s]' : index === 2 ? '[5–8s]' : '[8–10s]')}
-          </span>
-          <span className="bg-purple-950/70 text-purple-300 border border-purple-600/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-            {scene.scenePurpose || (index === 0 ? 'HOOK' : index === 1 ? 'PROBLEM / PRODUCT' : index === 2 ? 'DEMONSTRATION' : 'RESULT / CTA')}
-          </span>
+
+          {/* Special Hook Badge for Scene 1 */}
           {index === 0 && (
-            <span className="bg-amber-950/60 text-amber-300 border border-amber-600/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-              Hook 0.5–2 Detik
-            </span>
+            <div className="flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-600/40 text-[11px] font-bold px-2.5 py-0.5 rounded-lg shadow-sm">
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              <span>Hook 3 Detik (Penentu FYP)</span>
+            </div>
           )}
+
+          {/* Closing / CTA Badge for Last Scene */}
           {index === totalScenes - 1 && totalScenes > 1 && (
-            <span className="bg-emerald-950/60 text-emerald-300 border border-emerald-600/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
-              CTA / Closing
+            <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-600/40 text-[11px] font-bold px-2.5 py-0.5 rounded-lg">
+              🛒 Call to Action (Keranjang Kuning)
             </span>
           )}
         </div>
 
-        {/* Quick copy buttons & Action icons on header */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="hidden sm:flex items-center gap-1 bg-[#121828] border border-[#1e2a44] rounded-lg p-0.5 text-[10px]">
+        {/* Right Header: Duration Stepper & Action Icons */}
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {/* Quick Duration Stepper */}
+          <div className="flex items-center gap-1.5 bg-[#141b2b] border border-[#222e47] rounded-xl px-2.5 py-1">
+            <Clock className="w-3 h-3 text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+              Durasi:
+            </span>
+
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(scene.dialogVO || '');
-              }}
-              className="px-2 py-1 text-slate-400 hover:text-white hover:bg-[#1a243a] rounded transition-colors"
-              title="Salin Voiceover Adegan Ini"
+              onClick={() => handleDurationChange(-1)}
+              className="w-5 h-5 rounded bg-[#1c263b] hover:bg-purple-900/60 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors"
+              title="Kurangi 1 detik"
             >
-              Copy VO
+              <Minus className="w-2.5 h-2.5" />
             </button>
+
+            <span className="font-mono font-bold text-xs text-emerald-400 min-w-[28px] text-center">
+              {scene.duration}s
+            </span>
+
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(scene.popupText || '');
-              }}
-              className="px-2 py-1 text-slate-400 hover:text-white hover:bg-[#1a243a] rounded transition-colors"
-              title="Salin Text Overlay Adegan Ini"
+              onClick={() => handleDurationChange(1)}
+              className="w-5 h-5 rounded bg-[#1c263b] hover:bg-purple-900/60 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors"
+              title="Tambah 1 detik"
             >
-              Copy Overlay
-            </button>
-            <button
-              type="button"
-              onClick={handleSyncOverlayFromVoice}
-              className="px-2 py-1 text-purple-300 hover:text-white hover:bg-purple-950/60 rounded transition-colors"
-              title="Sinkronkan Otomatis Overlay dari Voiceover (3-5 kata)"
-            >
-              Sync VO
+              <Plus className="w-2.5 h-2.5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-1 bg-[#151c2d] border border-[#222e47] rounded-lg p-1">
-          <button
-            onClick={onMoveUp}
-            disabled={index === 0}
-            className={`p-1.5 rounded transition-colors ${
-              index === 0
-                ? 'text-slate-600 cursor-not-allowed'
-                : 'text-slate-400 hover:text-white hover:bg-[#202b42]'
-            }`}
-            title="Pindahkan adegan ke atas"
-          >
-            <ArrowUp className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={index === totalScenes - 1}
-            className={`p-1.5 rounded transition-colors ${
-              index === totalScenes - 1
-                ? 'text-slate-600 cursor-not-allowed'
-                : 'text-slate-400 hover:text-white hover:bg-[#202b42]'
-            }`}
-            title="Pindahkan adegan ke bawah"
-          >
-            <ArrowDown className="w-3.5 h-3.5" />
-          </button>
-          
-          <button
-            onClick={onDuplicate}
-            className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-[#202b42] transition-colors"
-            title="Duplikat adegan ini"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
+          {/* Move, Duplicate, AI Enhance, Delete */}
+          <div className="flex items-center gap-0.5 bg-[#141b2b] border border-[#222e47] rounded-xl p-0.5">
+            <button
+              onClick={onMoveUp}
+              disabled={index === 0}
+              className={`p-1.5 rounded-lg transition-colors ${
+                index === 0
+                  ? 'text-slate-600 cursor-not-allowed'
+                  : 'text-slate-400 hover:text-white hover:bg-[#1e2840]'
+              }`}
+              title="Pindahkan ke atas"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+            </button>
 
-          <button
-            onClick={() => onEnhanceAI(scene)}
-            disabled={isEnhancing}
-            className="p-1.5 rounded text-purple-400 hover:text-purple-200 hover:bg-purple-900/40 transition-colors"
-            title="Poles adegan ini dengan AI"
-          >
-            <Sparkles className={`w-3.5 h-3.5 ${isEnhancing ? 'animate-spin' : ''}`} />
-          </button>
+            <button
+              onClick={onMoveDown}
+              disabled={index === totalScenes - 1}
+              className={`p-1.5 rounded-lg transition-colors ${
+                index === totalScenes - 1
+                  ? 'text-slate-600 cursor-not-allowed'
+                  : 'text-slate-400 hover:text-white hover:bg-[#1e2840]'
+              }`}
+              title="Pindahkan ke bawah"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+            </button>
 
-          <button
-            onClick={onDelete}
-            disabled={totalScenes <= 1}
-            className={`p-1.5 rounded transition-colors ${
-              totalScenes <= 1
-                ? 'text-slate-600 cursor-not-allowed'
-                : 'text-rose-400/80 hover:text-rose-300 hover:bg-rose-950/40'
-            }`}
-            title="Hapus adegan"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={onDuplicate}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1e2840] transition-colors"
+              title="Duplikat adegan"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => onEnhanceAI(scene)}
+              disabled={isEnhancing}
+              className="p-1.5 rounded-lg text-purple-400 hover:text-purple-200 hover:bg-purple-950 transition-colors"
+              title="Poles deskripsi & dialog adegan ini dengan AI"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isEnhancing ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={onDelete}
+              disabled={totalScenes <= 1}
+              className={`p-1.5 rounded-lg transition-colors ${
+                totalScenes <= 1
+                  ? 'text-slate-600 cursor-not-allowed'
+                  : 'text-rose-400 hover:text-rose-200 hover:bg-rose-950/50'
+              }`}
+              title="Hapus adegan"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-      {/* Main Grid Content */}
-      <div className="space-y-4">
-        
-        {/* ROW 1: Angle Kamera (Left) & Aksi Visual / Adegan (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          
-          {/* Angle Kamera */}
-          <div className="lg:col-span-4 relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <Eye className="w-3 h-3 text-purple-400" />
-                <span>ANGLE KAMERA</span>
-              </label>
+      {/* A/B Hook Testing Variant Bar (Exclusively for Scene 1) */}
+      {index === 0 && (
+        <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-[#141b2c] to-[#0e1422] border border-amber-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1 mr-1">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              <span>A/B Hook Testing:</span>
+            </span>
+
+            {/* Hook Variant Buttons */}
+            {(hookVariants.length > 0
+              ? hookVariants
+              : [
+                  {
+                    id: 'hook_a',
+                    name: 'Hook A (Utama)',
+                    type: 'FOMO',
+                    dialogVO: scene.dialogVO,
+                    visualAction: scene.visualAction,
+                    popupText: scene.popupText,
+                    soundEffect: scene.soundEffect,
+                    duration: scene.duration,
+                  },
+                ]
+            ).map((variant, vIdx) => (
+              <button
+                key={variant.id || vIdx}
+                type="button"
+                onClick={() => onSelectHookVariant && onSelectHookVariant(vIdx)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  activeHookIndex === vIdx
+                    ? 'bg-amber-400 text-black shadow-md font-black scale-105'
+                    : 'bg-[#192236] text-slate-300 hover:text-white border border-[#2a3854]'
+                }`}
+              >
+                {variant.name || `Hook ${String.fromCharCode(65 + vIdx)}`}
+              </button>
+            ))}
+
+            {onAddHookVariant && hookVariants.length < 3 && (
               <button
                 type="button"
-                onClick={() => setShowAngleMenu(!showAngleMenu)}
-                className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-0.5"
+                onClick={onAddHookVariant}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-purple-300 hover:text-white bg-purple-950/80 hover:bg-purple-900 border border-purple-700/50 transition-colors flex items-center gap-1"
+                title="Tambah varian hook pembuka (maksimal 3 variasi)"
               >
-                <span>Pilih</span>
-                <ChevronDown className="w-3 h-3" />
+                <Plus className="w-3 h-3" />
+                <span>+ Varian Hook</span>
               </button>
-            </div>
-            
-            <input
-              type="text"
-              value={scene.cameraAngle}
-              onChange={(e) => handleChange('cameraAngle', e.target.value)}
-              placeholder="e.g. Medium Shot, Close-up, POV"
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-purple-500 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition-colors"
-            />
-
-            {/* Dropdown Preset Angles */}
-            {showAngleMenu && (
-              <div className="absolute left-0 top-full mt-1.5 w-64 bg-[#141b29] border border-[#2b3a58] rounded-xl shadow-2xl z-20 p-1.5 space-y-1">
-                <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">
-                  Pilihan Angle Populer
-                </div>
-                {CAMERA_ANGLE_PRESETS.map((angle) => (
-                  <button
-                    key={angle}
-                    type="button"
-                    onClick={() => {
-                      handleChange('cameraAngle', angle);
-                      setShowAngleMenu(false);
-                    }}
-                    className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-slate-200 hover:bg-purple-900/40 hover:text-purple-200 transition-colors flex items-center justify-between"
-                  >
-                    <span>{angle}</span>
-                    {scene.cameraAngle === angle && (
-                      <Check className="w-3 h-3 text-purple-400" />
-                    )}
-                  </button>
-                ))}
-              </div>
             )}
           </div>
 
-          {/* Aksi Visual / Adegan */}
-          <div className="lg:col-span-8">
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              <Video className="w-3 h-3 text-indigo-400" />
-              <span>AKSI VISUAL / ADEGAN</span>
-            </label>
-            <textarea
-              rows={2}
-              value={scene.visualAction}
-              onChange={(e) => handleChange('visualAction', e.target.value)}
-              placeholder="Deskripsikan apa yang dilakukan talent, ekspresi, properti, dan pergerakan kamera..."
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-purple-500 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition-colors resize-y leading-relaxed"
-            />
+          {onOpenHooksModal && (
+            <button
+              type="button"
+              onClick={onOpenHooksModal}
+              className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition-colors self-end sm:self-auto bg-amber-950/50 px-2.5 py-1 rounded-lg border border-amber-500/30"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              <span>Pilih Formula Hook Viral</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Card Content organized into 3 Visual Zones */}
+      <div className="space-y-3.5">
+        
+        {/* ZONE 1: VISUAL & SCREEN (Apa yang dilihat penonton) */}
+        <div className="p-3 rounded-xl bg-[#121826] border border-[#1d273e] space-y-3">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-300 uppercase tracking-wider">
+            <Video className="w-3.5 h-3.5 text-indigo-400" />
+            <span>1. Visual & Layar Smartphone</span>
           </div>
 
-        </div>
-
-        {/* ROW 2: Teks Pop-up (Layar), Efek Suara (SFX), Dialog / Voice Over */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Teks Pop-up (Layar) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <Type className="w-3 h-3 text-sky-400" />
-                <span>TEKS POP-UP (LAYAR)</span>
-              </label>
-              {scene.dialogVO && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            {/* Camera Angle */}
+            <div className="lg:col-span-4 relative">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Eye className="w-3 h-3 text-purple-400" />
+                  <span>Angle Kamera</span>
+                </label>
                 <button
                   type="button"
-                  onClick={handleSyncOverlayFromVoice}
-                  className="text-[10px] text-sky-300 hover:text-sky-200 flex items-center gap-1 bg-sky-950/50 hover:bg-sky-900/60 border border-sky-600/40 px-1.5 py-0.5 rounded transition-colors"
-                  title="Sinkronkan teks overlay langsung dari intisari dialog voice over"
+                  onClick={() => setShowAngleMenu(!showAngleMenu)}
+                  className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-0.5 font-medium"
                 >
-                  <Wand2 className="w-2.5 h-2.5" />
-                  <span>Sync VO</span>
+                  <span>Pilihan</span>
+                  <ChevronDown className="w-3 h-3" />
                 </button>
+              </div>
+
+              <input
+                type="text"
+                value={scene.cameraAngle}
+                onChange={(e) => handleChange('cameraAngle', e.target.value)}
+                placeholder="e.g. Medium Shot, POV, Close-up"
+                className="w-full bg-[#0c101a] border border-[#202c44] focus:border-purple-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
+              />
+
+              {showAngleMenu && (
+                <div className="absolute left-0 top-full mt-1.5 w-60 bg-[#121929] border border-[#2b3a58] rounded-xl shadow-2xl z-20 p-1.5 space-y-0.5">
+                  {CAMERA_ANGLE_PRESETS.map((angle) => (
+                    <button
+                      key={angle}
+                      type="button"
+                      onClick={() => {
+                        handleChange('cameraAngle', angle);
+                        setShowAngleMenu(false);
+                      }}
+                      className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-slate-200 hover:bg-purple-900/40 hover:text-purple-200 transition-colors flex items-center justify-between"
+                    >
+                      <span>{angle}</span>
+                      {scene.cameraAngle === angle && (
+                        <Check className="w-3 h-3 text-purple-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            <input
-              type="text"
-              value={scene.popupText}
-              onChange={(e) => handleChange('popupText', e.target.value)}
-              placeholder="e.g. DIET GAGAL MULU?!"
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-purple-500 rounded-xl px-3 py-2 text-sm font-bold text-sky-300 placeholder-slate-500 outline-none transition-colors"
-            />
-          </div>
 
-          {/* Efek Suara (SFX) - Highlighted in yellow text per screenshot */}
-          <div className="relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <Music2 className="w-3 h-3 text-amber-400" />
-                <span>EFEK SUARA (SFX)</span>
+            {/* Visual Action Description */}
+            <div className="lg:col-span-8">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Aksi Visual Talent / Produk
               </label>
-              <button
-                type="button"
-                onClick={() => setShowSfxMenu(!showSfxMenu)}
-                className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
-              >
-                <span>Pilih</span>
-                <ChevronDown className="w-3 h-3" />
-              </button>
+              <textarea
+                rows={2}
+                value={scene.visualAction}
+                onChange={(e) => handleChange('visualAction', e.target.value)}
+                placeholder="Deskripsikan pergerakan talent, ekspresi, interaksi produk, dan lighting..."
+                className="w-full bg-[#0c101a] border border-[#202c44] focus:border-purple-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors leading-relaxed resize-y"
+              />
             </div>
-
-            <input
-              type="text"
-              value={scene.soundEffect}
-              onChange={(e) => handleChange('soundEffect', e.target.value)}
-              placeholder="e.g. Phone ring & sigh, Swoosh"
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-amber-500/80 rounded-xl px-3 py-2 text-sm font-medium text-amber-300 placeholder-slate-500 outline-none transition-colors italic"
-            />
-
-            {/* Dropdown Preset SFX */}
-            {showSfxMenu && (
-              <div className="absolute left-0 top-full mt-1.5 w-64 max-h-60 overflow-y-auto bg-[#141b29] border border-[#2b3a58] rounded-xl shadow-2xl z-20 p-1.5 space-y-1 custom-scrollbar">
-                <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">
-                  SFX Viral TikTok
-                </div>
-                {SFX_PRESETS.map((sfx) => (
-                  <button
-                    key={sfx}
-                    type="button"
-                    onClick={() => {
-                      handleChange('soundEffect', sfx);
-                      setShowSfxMenu(false);
-                    }}
-                    className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-amber-200 hover:bg-amber-950/50 hover:text-amber-100 transition-colors flex items-center justify-between"
-                  >
-                    <span>{sfx}</span>
-                    {scene.soundEffect === sfx && (
-                      <Check className="w-3 h-3 text-amber-400" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* Dialog / Voice Over */}
+          {/* On-screen Popup Text */}
           <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              <Mic className="w-3 h-3 text-rose-400" />
-              <span>DIALOG / VOICE OVER</span>
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <Type className="w-3 h-3 text-sky-400" />
+              <span>Teks Pop-up di Layar (Overlay TikTok)</span>
             </label>
-            <input
-              type="text"
-              value={scene.dialogVO}
-              onChange={(e) => handleChange('dialogVO', e.target.value)}
-              placeholder="e.g. Diet gagal mulu, pusing!"
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-purple-500 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition-colors"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={scene.popupText}
+                onChange={(e) => handleChange('popupText', e.target.value)}
+                placeholder="e.g. JANGAN SKIP DULU! 😱 atau HASIL 7 HARI!"
+                className="flex-1 bg-[#0c101a] border border-[#202c44] focus:border-sky-500 rounded-xl px-3 py-1.5 text-xs font-bold text-sky-300 placeholder-slate-500 outline-none transition-colors"
+              />
+              {scene.popupText && (
+                <span className="hidden sm:inline-block text-[10px] bg-sky-950 text-sky-300 border border-sky-700/40 px-2 py-1 rounded-lg shrink-0 font-mono">
+                  Preview: {scene.popupText}
+                </span>
+              )}
+            </div>
           </div>
-
         </div>
 
-        {/* ROW 3: Catatan / Mood (Left) & Durasi (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center pt-1">
-          
-          {/* Catatan / Mood */}
-          <div className="lg:col-span-9 relative">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <FileText className="w-3 h-3 text-slate-400" />
-                <span>CATATAN / MOOD</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowMoodMenu(!showMoodMenu)}
-                className="text-[10px] text-slate-400 hover:text-slate-300 flex items-center gap-0.5"
-              >
-                <span>Template Mood</span>
-                <ChevronDown className="w-3 h-3" />
-              </button>
+        {/* ZONE 2: AUDIO & NARRATION (Apa yang didengar penonton) */}
+        <div className="p-3 rounded-xl bg-[#121826] border border-[#1d273e] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] font-bold text-rose-300 uppercase tracking-wider">
+              <Mic className="w-3.5 h-3.5 text-rose-400" />
+              <span>2. Audio, Dialog & Efek Suara</span>
             </div>
 
-            <input
-              type="text"
-              value={scene.notesMood}
-              onChange={(e) => handleChange('notesMood', e.target.value)}
-              placeholder="e.g. Gaya teks: Chat Bubble. Pencahayaan redup dramatis."
-              className="w-full bg-[#141b29] border border-[#222e47] focus:border-purple-500 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none transition-colors"
-            />
-
-            {/* Dropdown Preset Moods */}
-            {showMoodMenu && (
-              <div className="absolute left-0 top-full mt-1.5 w-80 max-h-60 overflow-y-auto bg-[#141b29] border border-[#2b3a58] rounded-xl shadow-2xl z-20 p-1.5 space-y-1 custom-scrollbar">
-                <div className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">
-                  Catatan Visual & Teks
-                </div>
-                {MOOD_PRESETS.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      handleChange('notesMood', m);
-                      setShowMoodMenu(false);
-                    }}
-                    className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#202b42] hover:text-white transition-colors"
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Durasi Widget matching the screenshot */}
-          <div className="lg:col-span-3 flex justify-start lg:justify-end">
-            <div className="flex items-center gap-2 bg-[#141b29] border border-[#222e47] rounded-xl px-3 py-1.5">
-              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <Clock className="w-3 h-3 text-slate-400" />
-                <span>DURASI</span>
-              </label>
-
-              <div className="flex items-center gap-1.5 ml-2">
-                <button
-                  type="button"
-                  onClick={() => handleDurationChange(-1)}
-                  className="w-5 h-5 rounded bg-[#1c263a] hover:bg-purple-900/60 text-slate-300 hover:text-purple-200 flex items-center justify-center text-xs transition-colors"
-                  title="Kurangi 1 detik"
+            {/* Smart Voiceover Pacing Indicator */}
+            {wordCount > 0 && (
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <span className="text-slate-400 font-mono">{wordCount} kata</span>
+                <span>•</span>
+                <span
+                  className={`font-semibold px-2 py-0.5 rounded-full border ${
+                    isTooFast
+                      ? 'bg-red-950/80 text-red-300 border-red-700/50'
+                      : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'
+                  }`}
                 >
-                  <Minus className="w-2.5 h-2.5" />
-                </button>
-
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={scene.duration}
-                  onChange={(e) => handleChange('duration', Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-8 text-center bg-[#0d121c] border border-[#2b3a58] rounded text-xs font-bold text-purple-300 py-0.5 outline-none"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => handleDurationChange(1)}
-                  className="w-5 h-5 rounded bg-[#1c263a] hover:bg-purple-900/60 text-slate-300 hover:text-purple-200 flex items-center justify-center text-xs transition-colors"
-                  title="Tambah 1 detik"
-                >
-                  <Plus className="w-2.5 h-2.5" />
-                </button>
-
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                  DTK
+                  {isTooFast ? '⚠️ Terlalu Cepat untuk Durasi Ini' : '✅ Pacing Natural (~' + estimatedSeconds + 's)'}
                 </span>
               </div>
-            </div>
+            )}
           </div>
 
-        </div>
-
-        {/* ROW 4: Google Flow Prompt & Image Generator Assistant */}
-        <div className="pt-2 border-t border-[#1a2337]/80 mt-1">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setShowFlowPrompt(!showFlowPrompt)}
-              className="flex items-center gap-1.5 text-[11px] font-bold text-purple-300 hover:text-purple-200 transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              <span>GOOGLE FLOW & IMAGEN PROMPT</span>
-              <span className="bg-purple-950/80 text-purple-300 text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30">
-                Visual Consistency
-              </span>
-              {showFlowPrompt ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopyFlowPrompt}
-              className="flex items-center gap-1 text-[10px] font-semibold text-purple-300 hover:text-purple-200 bg-purple-950/60 hover:bg-purple-900 border border-purple-500/40 px-2 py-1 rounded-lg transition-colors"
-              title="Salin prompt Google Flow untuk adegan ini"
-            >
-              {copiedFlow ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-300">Tersalin!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3" />
-                  <span>Copy Flow Prompt</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {showFlowPrompt && (
-            <div className="mt-2 bg-[#0c101a] border border-[#1d273f] rounded-xl p-3 space-y-1.5 animate-fadeIn">
-              <div className="flex items-center justify-between text-[10px] text-slate-400">
-                <span>Prompt photorealistic sesuai referensi kemasan & konsistensi Google Flow:</span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            {/* Dialog / Voice Over */}
+            <div className="lg:col-span-8 relative">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Dialog / Narasi Voice Over
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowVoMenu(!showVoMenu)}
+                  className="text-[10px] text-rose-300 hover:text-white flex items-center gap-1 font-semibold bg-rose-950/60 hover:bg-rose-900 border border-rose-700/50 px-2 py-0.5 rounded-lg transition-colors active:scale-95"
+                  title="Pilih inspirasi gaya bicara atau tone voiceover"
+                >
+                  <span>🎙️ Variasi Gaya VO</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
               </div>
               <textarea
                 rows={2}
-                value={scene.googleFlowPrompt || ''}
-                onChange={(e) => handleChange('googleFlowPrompt', e.target.value)}
-                placeholder="smartphone handheld POV, authentic packaging of product, realistic lighting, organic human skin texture, TikTok UGC aesthetic --no cgi, 3d render"
-                className="w-full bg-[#111726] border border-[#1f2b43] focus:border-purple-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-purple-200 placeholder-slate-500 outline-none transition-colors resize-y leading-relaxed"
+                value={scene.dialogVO}
+                onChange={(e) => handleChange('dialogVO', e.target.value)}
+                placeholder="Kalimat yang diucapkan kreator atau voiceover pada adegan ini..."
+                className="w-full bg-[#0c101a] border border-[#202c44] focus:border-rose-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors leading-relaxed resize-y"
               />
+
+              {showVoMenu && (
+                <div className="absolute left-0 top-full mt-1.5 w-full sm:w-[420px] bg-[#121929] border border-[#2b3a58] rounded-xl shadow-2xl z-30 p-2.5 space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  <div className="text-[11px] font-bold text-slate-200 pb-1.5 border-b border-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <span>🎙️ Pustaka Gaya Bicara & Tone VO ({VO_TONE_PRESETS.length} Gaya):</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowVoMenu(false)}
+                      className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {VO_TONE_PRESETS.map((t) => (
+                      <button
+                        key={t.name}
+                        type="button"
+                        onClick={() => {
+                          handleChange('dialogVO', t.example);
+                          handleChange('notesMood', `Tone VO: ${t.name}. ${scene.notesMood || ''}`.trim());
+                          setShowVoMenu(false);
+                        }}
+                        className="w-full text-left p-2 rounded-xl bg-[#0d121f] hover:bg-rose-950/40 border border-[#1e293f] hover:border-rose-600/50 transition-all group"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-bold text-rose-300 group-hover:text-rose-200">{t.name}</span>
+                          <span className="text-[9px] bg-rose-950 text-rose-300 border border-rose-800/40 px-1.5 py-0.5 rounded font-bold font-mono">
+                            {t.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 italic mb-1">"{t.example}"</p>
+                        <p className="text-[10px] text-slate-500 group-hover:text-slate-400">{t.style}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sound Effect (SFX) */}
+            <div className="lg:col-span-4 relative">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Music2 className="w-3 h-3 text-amber-400" />
+                  <span>Efek Suara (SFX)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSfxMenu(!showSfxMenu)}
+                  className="text-[10px] text-amber-300 hover:text-white flex items-center gap-1 font-semibold bg-amber-950/60 hover:bg-amber-900 border border-amber-700/50 px-2 py-0.5 rounded-lg transition-colors active:scale-95"
+                >
+                  <span>SFX Viral</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+
+              <input
+                type="text"
+                value={scene.soundEffect}
+                onChange={(e) => handleChange('soundEffect', e.target.value)}
+                placeholder="e.g. Vine boom, Bell chime"
+                className="w-full bg-[#0c101a] border border-[#202c44] focus:border-amber-500 rounded-xl px-3 py-1.5 text-xs text-amber-300 placeholder-slate-500 outline-none transition-colors italic"
+              />
+
+              {showSfxMenu && (
+                <div className="absolute right-0 top-full mt-1.5 w-72 sm:w-80 max-h-72 overflow-y-auto bg-[#121929] border border-[#2b3a58] rounded-xl shadow-2xl z-30 p-2.5 space-y-2 custom-scrollbar">
+                  <div className="text-[11px] font-bold text-amber-300 pb-1.5 border-b border-slate-800 flex items-center justify-between">
+                    <span>Pustaka SFX Viral ({SFX_PRESETS.length} Efek):</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSfxMenu(false)}
+                      className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Category Pills */}
+                  <div className="flex flex-wrap gap-1 pb-1">
+                    {['Semua', ...SFX_CATEGORIES.map((c) => c.category.split(' ')[0])].map((catName) => (
+                      <button
+                        key={catName}
+                        type="button"
+                        onClick={() => setSelectedSfxCat(catName)}
+                        className={`text-[9px] px-2 py-0.5 rounded-md font-bold transition-all ${
+                          selectedSfxCat === catName
+                            ? 'bg-amber-400 text-black shadow-sm'
+                            : 'bg-[#0d121f] text-slate-400 hover:text-slate-200 border border-slate-800'
+                        }`}
+                      >
+                        {catName}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Grouped SFX Items */}
+                  <div className="space-y-2.5">
+                    {SFX_CATEGORIES.filter(
+                      (c) => selectedSfxCat === 'Semua' || c.category.includes(selectedSfxCat)
+                    ).map((group) => (
+                      <div key={group.category} className="space-y-1">
+                        <span className="text-[9px] font-bold text-amber-400/90 uppercase tracking-wider block px-1">
+                          {group.category}
+                        </span>
+                        <div className="space-y-0.5">
+                          {group.items.map((sfx) => (
+                            <button
+                              key={sfx}
+                              type="button"
+                              onClick={() => {
+                                handleChange('soundEffect', sfx);
+                                setShowSfxMenu(false);
+                              }}
+                              className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-amber-200 hover:bg-amber-950/50 hover:text-amber-100 transition-colors flex items-center justify-between group"
+                            >
+                              <span className="truncate">{sfx}</span>
+                              {scene.soundEffect === sfx && (
+                                <Check className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ZONE 3: MOOD & PRODUCTION NOTES */}
+        <div className="relative">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <FileText className="w-3 h-3 text-slate-400" />
+              <span>Catatan Khusus / Style & Mood Video</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowMoodMenu(!showMoodMenu)}
+              className="text-[10px] text-slate-400 hover:text-slate-300 flex items-center gap-0.5"
+            >
+              <span>Preset Style</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={scene.notesMood}
+            onChange={(e) => handleChange('notesMood', e.target.value)}
+            placeholder="e.g. Gaya teks: Bold Red. Pencahayaan natural warm. Gerakan kamera cepat."
+            className="w-full bg-[#121826] border border-[#1e293f] focus:border-purple-500 rounded-xl px-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 outline-none transition-colors"
+          />
+
+          {showMoodMenu && (
+            <div className="absolute left-0 top-full mt-1.5 w-72 max-h-52 overflow-y-auto bg-[#121929] border border-[#2b3a58] rounded-xl shadow-2xl z-20 p-1.5 space-y-0.5 custom-scrollbar">
+              {MOOD_PRESETS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    handleChange('notesMood', m);
+                    setShowMoodMenu(false);
+                  }}
+                  className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#1a2336] hover:text-white transition-colors"
+                >
+                  {m}
+                </button>
+              ))}
             </div>
           )}
         </div>
