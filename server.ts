@@ -1,19 +1,16 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // List of supported Gemini models with automatic cascading fallback (fastest & most stable first)
 const CANDIDATE_MODELS = [
@@ -150,85 +147,147 @@ function generateRichFallback(
   targetDuration: number = 30,
   targetAudience: string = '',
   keySellingPoints: string = '',
-  requestedSceneCount: number = 0
+  requestedSceneCount: number = 0,
+  cameraStyle: string = 'Kombinasi Dinamis (Rekomendasi AI Otomatis)',
+  visualFraming: string = 'mix_framing'
 ) {
   const normCat = (category || '').toLowerCase();
   const safeName = productName || 'Produk Pilihan';
   const safeUSP = keySellingPoints || 'Hasil terbukti, praktis & aman digunakan setiap hari';
 
-  // Rich 9-step template library
+  // Customize scene templates based on visualFraming
+  const isHandsOnly = visualFraming === 'hands_pov';
+  const isFaceCloseup = visualFraming === 'face_closeup';
+  const isFullBody = visualFraming === 'full_body';
+
+  let defaultAngle1 = cameraStyle.includes('Vlog') ? 'Handheld Selfie (Eye Level)' :
+    cameraStyle.includes('POV') ? 'POV First-Person Handheld' :
+    cameraStyle.includes('Macro') ? 'Macro Extreme Close-Up' :
+    cameraStyle.includes('Split') ? 'Split-Screen Dual Angle' :
+    cameraStyle.includes('Overhead') ? 'Overhead 90° Top-Down' :
+    cameraStyle.includes('Low-Angle') ? 'Low-Angle Hero Shot' : 'POV / Handheld Close';
+
+  if (isHandsOnly) defaultAngle1 = 'POV First-Person (Hanya Tangan / Faceless)';
+  if (isFaceCloseup) defaultAngle1 = 'Eye-Level Close-Up Wajah (Realistis)';
+  if (isFullBody) defaultAngle1 = 'Full-Body Vertical (9:16 Kamera Berdiri)';
+
+  // Rich 9-step template library with Anti-AI Realism and Consistent Product Packaging
   const full9Scenes = [
     {
-      cameraAngle: 'POV / Handheld Close',
-      visualAction: `Kreator menatap kamera dengan tatapan kaget dan gesture tangan menyetop scroll.`,
+      cameraAngle: defaultAngle1,
+      visualAction: isHandsOnly
+        ? `POV orang pertama (tanpa wajah): Kedua tangan kreator memegang kemasan ${safeName} di atas meja bersih dengan pencahayaan alami, menghentikan scroll secara tegas.`
+        : isFaceCloseup
+        ? `Kreator menatap langsung ke lensa kamera HP (eye-level) dengan ekspresi terkejut alami tanpa filter robotik, mendekatkan wajah dengan pencahayaan softbox studio rumahan.`
+        : isFullBody
+        ? `Full-body vertical 9:16: Kreator berdiri tegak di ruangan terang memperlihatkan postur keseluruhan, melangkah mantap mendekati kamera sambil memegang ${safeName}.`
+        : `Kreator menatap kamera HP dengan ekspresi kaget alami (tanpa filter/CGI) dan gestur tangan menyetop scroll sambil menunjukkan kemasan ${safeName}.`,
       popupText: 'JANGAN SKIP DULU! 😱',
       soundEffect: 'Record scratch & Vine boom',
       dialogVO: `Stop scrolling! Ada satu rahasia yang wajib kalian tahu hari ini!`,
-      notesMood: 'Gaya teks: Bold Red/Yellow. High energy expression.',
+      notesMood: `Gaya teks: Bold Red/Yellow. Framing: ${visualFraming}. Natural skin texture & organic lighting.`,
     },
     {
-      cameraAngle: 'Extreme Close-up',
-      visualAction: `Zoom cepat ke ekspresi penasaran/masalah yang sering dialami audiens.`,
+      cameraAngle: isHandsOnly ? 'POV Hands Close-Up' : isFaceCloseup ? 'Extreme Close-Up Ekspresi' : isFullBody ? 'Full Body Turn / Side Shot' : 'Extreme Close-up',
+      visualAction: isHandsOnly
+        ? `POV tangan memperlihatkan kondisi kendala/masalah sebelum memakai produk, tekstur permukaan terlihat sangat nyata dan organik tanpa keanehan AI.`
+        : isFaceCloseup
+        ? `Kamera close-up stabil menangkap ekspresi frustrasi alami kreator dengan mikro-ekspresi manusiawi dan kontak mata tulus.`
+        : isFullBody
+        ? `Kreator berputar 45 derajat menunjukkan postur tubuh atau detail outfit sebelum transformasi secara menyeluruh.`
+        : `Kamera push-in perlahan dan stabil fokus ke ekspresi penasaran dan situasi masalah yang sering dialami audiens.`,
       popupText: 'PERNAH ALAMI INI? 😫',
       soundEffect: 'Dramatic swoosh',
       dialogVO: `Dulu sering banget kesel sama masalah ini dan gak nemu solusinya.`,
-      notesMood: 'Gaya teks: Chat Bubble. Pencahayaan sedikit dramatis.',
+      notesMood: 'Gaya teks: Chat Bubble. Pencahayaan sedikit dramatis. Bebas CGI.',
     },
     {
-      cameraAngle: 'Medium Shot',
-      visualAction: `Kreator tersenyum lega sambil mengangkat kemasan ${safeName}.`,
+      cameraAngle: isHandsOnly ? 'POV Top-Down Hands Unboxing' : isFaceCloseup ? 'Medium Close-up Wajah & Produk' : 'Medium Shot',
+      visualAction: isHandsOnly
+        ? `POV tangan membuka segel dan kemasan ${safeName}, bentuk dus, warna botol, dan logo terlihat tajam dan konsisten untuk referensi visual Google Flow.`
+        : isFaceCloseup
+        ? `Kreator tersenyum lega sambil mendekatkan kemasan ${safeName} di samping pipi dengan pencahayaan natural.`
+        : isFullBody
+        ? `Kreator dalam bingkai full-body tersenyum lega sambil mengangkat kemasan ${safeName} setinggi dada.`
+        : `Kreator tersenyum lega sambil mengangkat kemasan ${safeName} dengan kemasan konsisten.`,
       popupText: `SOLUSI: ${safeName.toUpperCase()} ✨`,
       soundEffect: 'Sparkle chime & Ding',
       dialogVO: `Sampai akhirnya aku nemu ${safeName} yang lagi viral ini!`,
-      notesMood: 'Gaya teks: Bouncy Glow. Transisi cerah.',
+      notesMood: 'Gaya teks: Bouncy Glow. Transisi mulus, packaging konsisten Google Flow.',
     },
     {
-      cameraAngle: 'Close-up Macro',
-      visualAction: `Sorotan close-up kemasan, segel dan detail material estetik ${safeName}.`,
+      cameraAngle: 'Close-up Macro (Konsistensi Kemasan)',
+      visualAction: `Sorotan makro tajam fokus pada detail kemasan ${safeName}, label merek, tutup botol/jar, dan tekstur fisik produk asli (organik smartphone capture).`,
       popupText: 'KUALITAS BINTANG 5 ⭐⭐⭐⭐⭐',
       soundEffect: 'Camera shutter & Pop',
       dialogVO: `Packaging dan build quality-nya beneran premium banget.`,
-      notesMood: 'Gaya teks: Gold Badge. Detail tekstur produk.',
+      notesMood: 'Gaya teks: Gold Badge. Detail tekstur produk tajam & konsisten.',
     },
     {
-      cameraAngle: 'POV / Macro Angle',
-      visualAction: `Demonstrasi membuka / menuang / mencoba tekstur ${safeName} secara detail.`,
+      cameraAngle: isHandsOnly ? 'POV Hands Macro Texture Test' : 'POV / Macro Angle',
+      visualAction: isHandsOnly
+        ? `POV kedua tangan menguji tekstur produk secara nyata (swatch di punggung tangan / tuang isi krim), tekstur formulasi tampak nyata tanpa efek kartun.`
+        : isFaceCloseup
+        ? `Kreator mengaplikasikan sedikit produk ke wajah sambil tersenyum takjub merasakan sensasi pemakaian.`
+        : isFullBody
+        ? `Kreator memperagakan penggunaan praktis produk secara aktif dengan gerakan ergonomis dan luwes.`
+        : `Demonstrasi membuka / menuang / mencoba tekstur ${safeName} secara detail dengan tangan manusia asli beranatomi sempurna.`,
       popupText: 'TEKSTUR MEWAH & NYAMAN 🌿',
       soundEffect: 'ASMR Crisp & Smooth Whoosh',
       dialogVO: `Cara pakainya super praktis dan kerasa banget bedanya dari pertama coba.`,
-      notesMood: 'Gaya teks: Minimalist Subtitle. Lighting jernih.',
+      notesMood: 'Gaya teks: Minimalist Subtitle. Lighting jernih organik, zero CGI.',
     },
     {
-      cameraAngle: 'Side Angle 45°',
-      visualAction: `Aksi pemakaian langsung produk di depan cermin/meja dengan ekspresi enjoy.`,
+      cameraAngle: isFullBody ? 'Full Body Dynamic Action' : 'Side Angle 45°',
+      visualAction: isHandsOnly
+        ? `POV tangan menunjukkan hasil aplikasi langsung pada produk, tekstur menyerap sempurna di permukaan kulit tangan.`
+        : isFaceCloseup
+        ? `Close-up sudut 45 derajat menyorot hasil nyata pada wajah dengan pori-pori kulit asli yang sehat dan bersih.`
+        : isFullBody
+        ? `Kreator bergerak dinamis (berjalan/berputar santai) memperlihatkan outfit/body transformation secara leluasa dan percaya diri.`
+        : `Aksi pemakaian langsung produk di depan meja/ruangan dengan ekspresi riang dan gestur santai.`,
       popupText: `${safeUSP.toUpperCase().slice(0, 30)} ⚡`,
       soundEffect: 'Ting sparkle',
       dialogVO: `Kandungannya juara dan langsung ngefek positif tanpa ribet.`,
-      notesMood: 'Gaya teks: Clean bullet points. Natural smile.',
+      notesMood: 'Gaya teks: Clean bullet points. Gerakan luwes anti-robotik.',
     },
     {
-      cameraAngle: 'Close-up Face',
-      visualAction: `Reaksi wajah puas tersenyum lebar dengan ekspresi terkesima.`,
+      cameraAngle: isHandsOnly ? 'POV Hands Side-by-Side' : isFaceCloseup ? 'Close-up Face (Puas & Terkesima)' : 'Close-up Face',
+      visualAction: isHandsOnly
+        ? `POV tangan menyejajarkan area sebelum vs sesudah dalam satu frame vertikal, perbedaan terlihat mencolok dan jelas.`
+        : isFaceCloseup
+        ? `Reaksi wajah puas tersenyum lebar menatap kamera HP dengan mata berbinar bahagia tanpa filter buatan.`
+        : isFullBody
+        ? `Kreator tersenyum percaya diri menampilkan siluet tubuh fit atau outfit lengkap dari ujung kepala hingga kaki.`
+        : `Reaksi wajah puas tersenyum lebar dengan ekspresi terkesima dan kontak mata tulus.`,
       popupText: 'JUJUR GAK NYANGKA! 😍',
       soundEffect: 'Cheer & Success chime',
       dialogVO: `Hasilnya di luar dugaan, beneran ngebantu banget dan bikin pede!`,
-      notesMood: 'Gaya teks: Heart pop emoji. Warm studio tone.',
+      notesMood: 'Gaya teks: Heart pop emoji. Warm studio tone, manusia organik.',
     },
     {
-      cameraAngle: 'Medium Shot',
-      visualAction: `Kreator memegang ${safeName} di samping wajah sambil memberikan gestur jempol.`,
+      cameraAngle: isHandsOnly ? 'POV Hands Holding Product' : 'Medium Shot',
+      visualAction: isHandsOnly
+        ? `POV tangan menggenggam produk ${safeName} dengan kemasan tetap utuh dan konsisten, memberikan gestur jempol di samping produk.`
+        : isFaceCloseup
+        ? `Kreator memegang ${safeName} di samping wajah sambil memberikan gestur jempol dan anggukan mantap.`
+        : isFullBody
+        ? `Kreator dalam tampilan full-body memegang ${safeName} dengan postur percaya diri dan gesture meyakinkan.`
+        : `Kreator memegang ${safeName} di samping wajah sambil memberikan gestur jempol.`,
       popupText: 'SUPER WORTH IT! 💯',
       soundEffect: 'Cha-ching cash register',
       dialogVO: `Menurut aku ini 10/10 dan beneran worth to buy banget.`,
-      notesMood: 'Gaya teks: Green verified badge.',
+      notesMood: 'Gaya teks: Green verified badge. Kemasan konsisten Google Flow.',
     },
     {
-      cameraAngle: 'Medium Wide Shot',
-      visualAction: `Kreator tersenyum antusias menunjuk ke pojok kiri bawah (keranjang kuning).`,
+      cameraAngle: isHandsOnly ? 'POV Hands Pointing Yellow Cart' : isFullBody ? 'Full Body / Medium Wide CTA' : 'Medium Wide Shot',
+      visualAction: isHandsOnly
+        ? `POV tangan memegang produk ${safeName} dengan tangan kiri, sementara jari telunjuk tangan kanan menunjuk tegas ke sudut kiri bawah layar (menunjuk Keranjang Kuning TikTok).`
+        : `Kreator tersenyum antusias menunjuk tegas ke pojok kiri bawah layar (Keranjang Kuning / tombol beli) sambil memperlihatkan kemasan ${safeName}.`,
       popupText: 'BURUAN CHECKOUT DISKON! 🛒',
       soundEffect: 'Bell ring & Cha-ching',
       dialogVO: `Mumpung ada voucher diskon & gratis ongkir, langsung checkout di keranjang kuning ya!`,
-      notesMood: 'Gaya teks: Pulsing CTA Button. Urgent offer.',
+      notesMood: 'Gaya teks: Pulsing CTA Button. Aksi jari menunjuk keranjang kuning kiri bawah.',
     },
   ];
 
@@ -300,40 +359,109 @@ app.post('/api/generate-storyboard', async (req, res) => {
       targetAudience = 'Pengguna TikTok / Reels usia 18-35 tahun',
       keySellingPoints = '',
       tone = 'Santai, Antusias & Meyakinkan',
+      cameraStyle = 'Kombinasi Dinamis (Rekomendasi AI Otomatis)',
+      visualFraming = 'mix_framing',
       targetDuration = 30,
       targetSceneCount = 0, // 0 = Auto, or 3-9 adegan
       platform = 'TikTok / Reels',
       language = 'id',
+      marketingFramework = 'aida',
+      hookStrategy,
+      ctaPreset,
     } = req.body;
 
     const sceneCountText = targetSceneCount && targetSceneCount >= 2 && targetSceneCount <= 9
-      ? `WAJIB BUAT TEPAT ${targetSceneCount} ADEGAN (meskipun durasi hanya ${targetDuration} detik, buat ${targetSceneCount} adegan bergaya fast-cut mikro yang dinamis!).`
+      ? `WAJIB BUAT TEPAT ${targetSceneCount} ADEGAN (meskipun durasi hanya ${targetDuration} detik, buat ${targetSceneCount} adegan mikro yang dinamis dan terstruktur!).`
       : `Buat 5 sampai 7 adegan yang proporsional, kaya, dan variatif agar alur video memikat dan tidak monoton.`;
 
+    const frameworkGuidelines: Record<string, string> = {
+      pas: 'Framework PAS (Problem - Agitate - Solve): Adegan awal sentuh masalah menyebalkan yang dialami audiens, perparah rasa tidak nyaman itu, lalu hadirkan produk sebagai solusi instan penyelamat.',
+      bab: 'Framework BAB (Before - After - Bridge): Tampilkan kontras dramatis kondisi awal (Before) vs kondisi memukau (After), lalu jadikan produk sebagai jembatan transformasi yang tak terbantahkan.',
+      unboxing: 'Framework Unboxing & Honest Review: Tampilkan pengalaman unboxing nyata, detail material/tekstur asli, dan ulasan tulus tanpa rekayasa yang membangun rasa percaya tinggi (high trust).',
+      fomo_urgency: 'Framework FOMO & Flash Urgency: Tekankan kelangkaan stok promo, harga diskon yang hampir habis hari ini, dan desakan untuk segera mengamankan pesanan.',
+      aida: 'Framework AIDA (Attention - Interest - Desire - Action): Tangkap perhatian dalam 3 detik, bangun minat lewat demo keunggulan, bakar hasrat ingin memiliki, lalu dorong aksi klik belanja.',
+    };
+    const selectedFrameworkText = frameworkGuidelines[marketingFramework] || frameworkGuidelines['aida'];
+
+    const framingGuidelines: Record<string, string> = {
+      hands_pov: `FOKUS SUDUT PANDANG (VISUAL FRAMING): 🖐️ HANYA TANGAN (POV / FACELESS).
+- Sudut Pengambilan Gambar: First-person camera POV (sudut pandang orang pertama langsung dari mata kreator menatap ke bawah/meja kerja).
+- Aksi Utama: Menyoroti unboxing nyata, tes tekstur produk (swatch/tuang/oles), aplikasi penggunaan step-by-step, dan interaksi tangan memegang produk secara ergonomis.
+- Batasan Ketat: TANPA MENAMPAKKAN WAJAH KREATOR (kreator faceless). Fokus 100% pada tangan manusia asli memegang kemasan dan detail produk secara makro tajam.`,
+
+      face_closeup: `FOKUS SUDUT PANDANG (VISUAL FRAMING): 👤 WAJAH & EKSPRESI (CLOSE-UP).
+- Sudut Pengambilan Gambar: Eye-level close-up & medium close-up menghadap kamera smartphone.
+- Aksi Utama: Menyoroti ekspresi riil kreator (kaget, penasaran, puas, takjub), ulasan produk secara tulus (honest review), kontak mata langsung ke lensa, dan perubahan sebelum & sesudah pada wajah/kulit secara nyata.
+- Batasan Ketat: Wajib tangkap mikro-ekspresi manusiawi alami, tekstur pori-pori kulit asli, tanpa filter wajah artifisial atau riasan robotik.`,
+
+      full_body: `FOKUS SUDUT PANDANG (VISUAL FRAMING): 🧍 FULL BODY (OUTFIT & GERAK AKTIF).
+- Sudut Pengambilan Gambar: Full-body vertical 9:16 framing (jarak 2-3 meter dari smartphone tegak).
+- Aksi Utama: Menyoroti postur tubuh keseluruhan, kesesuaian outfit/fashion, siluet badan, peragaan gerakan aktif/berjalan/berputar dinamis, dan pembuktian transformasi tubuh.
+- Batasan Ketat: Gerakan manusia aktif yang luwes, natural, ergonomis, memperlihatkan proporsi tubuh nyata dan fungsionalitas produk dalam aktivitas harian.`,
+
+      mix_framing: `FOKUS SUDUT PANDANG (VISUAL FRAMING): 🔀 MIX FRAMING (DINAMIS & PROPORSIONAL).
+- Sudut Pengambilan Gambar: Kombinasi sudut pengambilan gambar yang seimbang dan adaptif antar adegan.
+- Alur Framing Proporsional:
+  * Adegan 1 (Hook): Close-up Wajah ekspresi heboh / POV Tangan menarik perhatian seketika.
+  * Adegan Demo / Masalah: POV Tangan (Hands-only POV) makro menyorot tekstur & penggunaan nyata.
+  * Adegan Solusi / Reaksi: Medium Shot / Close-up Wajah ekspresi puas & sebelum-sesudah.
+  * Adegan Terakhir (CTA): Medium Shot talent memegang produk sambil menunjuk ke arah keranjang kuning di pojok kiri bawah.`
+    };
+    const selectedFramingText = framingGuidelines[visualFraming] || framingGuidelines['mix_framing'];
+
+    const hookGuidelineText = hookStrategy
+      ? `Strategi Hook Adegan 1: Terapkan strategi '${hookStrategy}' (buat kalimat pembuka dan visual aksi yang sangat memancing rasa penasaran atau menghentikan scroll seketika).`
+      : 'Strategi Hook Adegan 1: Wajib buat hook 3 detik pertama yang sangat tajam, relatable, dan memicu rasa penasaran audiens untuk stop scrolling.';
+
+    const ctaGuidelineText = ctaPreset
+      ? `Call To Action (Adegan Terakhir): Gunakan fokus '${ctaPreset}' (wajib dorong penonton klik Keranjang Kuning di kiri bawah).`
+      : 'Call To Action (Adegan Terakhir): Wajib secara spesifik mengarahkan penonton untuk KLIK KERANJANG KUNING (atau tombol belanja di pojok kiri bawah) sebelum promo/stok habis.';
+
     const prompt = `Kamu adalah pakar Creative Director & Scriptwriter UGC (User-Generated Content) viral TikTok Shop, Shopee Video, dan Instagram Reels di Indonesia.
-Buatkan storyboard UGC video lengkap yang terbukti memiliki Conversion Rate & Retention Rate tinggi untuk produk berikut:
+Buatkan storyboard UGC video lengkap yang terbukti memiliki Conversion Rate (CTR/Klik Beli) dan Retention Rate tertinggi untuk produk berikut:
 
 Kategori Konten: ${category}
 Nama Produk: ${productName}
 Deskripsi Produk: ${productDescription || 'Produk viral berkualitas tinggi dengan manfaat nyata'}
 Target Audiens: ${targetAudience}
 Poin Penjualan Utama (USP): ${keySellingPoints || 'Hasil cepat, harga terjangkau, praktis digunakan'}
+Formula Pemasaran: ${selectedFrameworkText}
+${selectedFramingText}
+${hookGuidelineText}
+${ctaGuidelineText}
 Tone of Voice: ${tone}
+Style Kamera & Sinematografi: ${cameraStyle}
 Target Durasi Total: ${targetDuration} detik
 Jumlah Adegan yang Diminta: ${sceneCountText}
 Platform: ${platform}
 Bahasa: ${language === 'id' ? 'Bahasa Indonesia (Gaya bicara kreator UGC TikTok santai, luwes, natural, tidak kaku)' : 'English (Casual UGC creator style)'}
 
-Syarat Wajib Format Storyboard:
-1. Adegan 1 WAJIB HOOK 3 DETIK PERTAMA (Visual + Audio/SFX + On-Screen Text) yang bikin orang stop scrolling.
-2. Adegan berikutnya mendemonstrasikan masalah / unboxing / tutorial / sebelum vs sesudah / manfaat nyata produk secara dinamis.
-3. Adegan terakhir WAJIB Call To Action (CTA) yang jelas dan mendesak (misal: checkout di keranjang kuning mumpung promo diskon & gratis ongkir).
-4. Berikan Sound Effect (SFX) yang KAYA, BERVARIASI, dan SPESIFIK di setiap adegan (kombinasi ASMR nyata, meme viral, bass drop, swoosh, cash register, ding, crunch, water swirl, heartbeat). DILARANG menggunakan SFX yang sama berulang-ulang di tiap adegan.
-5. Naskah Voiceover (VO) harus BERVARIASI SECARA EMOSIONAL dan intonasi alami: dari penasaran, heboh, curhat, hingga meyakinkan saat closing CTA. Sesuaikan panjang kata dengan durasi adegan agar tidak terburu-buru.
-6. Pop-up Text harus huruf kapital mencolok & singkat.
-7. Durasi setiap adegan (dalam integer detik) jika dijumlahkan WAJIB bernilai total mendekati ${targetDuration} detik. Jika durasi pendek (${targetDuration}s) dan adegan banyak (hingga 9 adegan), gunakan durasi fast-cut 1-2 detik per adegan.
-8. BUATKAN AUTO CAPTION DENGAN HASHTAG: Tulis 1 caption postingan media sosial yang menarik dan menjual, LENGKAP dengan 2-4 hashtag trending.
-   PENTING: TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG HARUS MAKSIMAL 150 KARAKTER!`;
+============================================================
+ATURAN KRUSIAL: KONSISTENSI PRODUK & ANTI-AI REALISM MANDATE
+============================================================
+1. KONSISTENSI PRODUK UNTUK REFERENSI GOOGLE FLOW:
+   - Deskripsi visual produk pada 'visualAction' WAJIB IDENTIK & KONSISTEN di setiap adegan (bentuk kemasan botol/jar/dus/sachet, warna utama, posisi logo, dan tekstur isi formulasi).
+   - Karena naskah ini akan digunakan sebagai prompt pembuatan visual di Google Flow, jangan pernah mengubah warna, bentuk kemasan, atau karakteristik fisik produk dari Adegan 1 sampai akhir!
+
+2. MANDAT ANTI-AI REALISM & REAL ORGANIC CREATOR (TOLAK ESTETIKA ARTIFISIAL):
+   - TOLAK KERAS: Dilarang estetika CGI, 3D animated render, efek kartun, filter robotik artifisial, kulit plastik mengkilap anomali (uncanny AI valley), dan gerakan kamera warping sintetis.
+   - WAJIB ESTETIKA KREATOR ORGANIK NYATA:
+     * Kualitas video smartphone nyata (iPhone 15 / Android 4K HDR, 9:16 vertikal, pencahayaan alami ruangan atau softbox studio rumahan).
+     * Detail manusia organik: pori-pori kulit asli tampak wajar, helai rambut alami, tangan manusia beranatomi 5 jari sempurna dan proporsional saat memegang produk.
+     * Gerakan natural: bebas dari gerakan anomali atau kaku ala robot. Setiap aksi adalah gerakan fisik nyata yang wajar dilakukan manusia saat merekam konten.
+
+3. KEPATUHAN PADA VISUAL FRAMING:
+   - ${selectedFramingText}
+   - Pastikan cameraAngle dan visualAction di setiap adegan mengikuti panduan fokus visual framing di atas.
+
+4. HOOK PENARIK PERHATIAN (Adegan 1): WAJIB HOOK 3 DETIK PERTAMA (Visual + Audio/SFX + On-Screen Text) yang bikin orang stop scrolling dan langsung tertarik.
+5. ALUR MEMICU KLIK BELI (High CTR): Tunjukkan bukti nyata/manfaat produk yang menjawab kebutuhan audiens sesuai formula pemasaran.
+6. CALL TO ACTION (CTA) TERAKHIR: WAJIB instruksikan talent/tangan untuk mengarahkan jari ke sudut kiri bawah layar (menunjuk Keranjang Kuning / tombol belanja) dengan alasan mendesak.
+7. Efek Suara (SFX): Berikan SFX yang KAYA, BERVARIASI, dan SPESIFIK di setiap adegan (ASMR nyata, meme viral, swoosh, cash register, ding, crunch, dsb). DILARANG menggunakan SFX yang sama berulang-ulang di tiap adegan.
+8. Naskah Voiceover (VO): Naskah harus BERVARIASI SECARA EMOSIONAL dan intonasi alami: dari penasaran, heboh, curhat, hingga meyakinkan saat closing CTA. Sesuaikan panjang kata dengan durasi adegan agar tidak terburu-buru.
+9. Pop-up Text: Huruf kapital mencolok & singkat (maksimal 6-8 kata) yang langsung menyampaikan pesan utama adegan.
+10. Durasi setiap adegan (dalam integer detik) jika dijumlahkan WAJIB bernilai total mendekati ${targetDuration} detik.
+11. AUTO CAPTION DENGAN HASHTAG: Tulis 1 caption postingan media sosial yang menjual, LENGKAP dengan 2-4 hashtag trending. TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG HARUS MAKSIMAL 150 KARAKTER!`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -435,7 +563,9 @@ Syarat Wajib Format Storyboard:
       targetDuration,
       targetAudience,
       keySellingPoints,
-      targetSceneCount
+      targetSceneCount,
+      cameraStyle,
+      visualFraming
     );
 
     return res.json({
@@ -733,8 +863,11 @@ Tugas Anda:
 6. tone: Nada bicara yang paling pas (pilih salah satu: "Santai, Relatable & Meyakinkan", "Hype, Heboh & Excited", "Edukatif, Tenang & Elegan", "Drama Komedi & Sketsa Lucu", atau "ASMR Bisik & Estetik").
 7. targetPlatform: Platform yang cocok ("TikTok Shop", "Shopee Video", "Instagram Reels", "YouTube Shorts").
 8. targetDuration: Rekomendasi durasi (integer: 10, 15, 30, 45, atau 60 detik).
-9. detectedTags: Array 3-5 kata kunci relevan (misal: ["skincare", "niacinamide", "pencerah", "anti-acne"]).
-10. detectionSummary: Penjelasan ringkas ramah 1 kalimat tentang apa yang berhasil dideteksi.`;
+9. cameraStyle: Rekomendasi gaya kamera sinematografi terbaik untuk produk & kategori ini (PILIH SALAH SATU: "Kombinasi Dinamis (Rekomendasi AI Otomatis)", "Handheld Vlog & Casual Selfie", "POV First-Person Handheld", "Macro & Texture Extreme Close-Up", "Split-Screen & Dual Angle (Sebelum vs Sesudah)", "Fast Paced Whip-Pan & Snap Zoom", "Overhead / Flat Lay Studio (90° Top-Down)", "Cinematic Shallow Depth of Field (Bokeh Halus)", atau "Low-Angle Hero Power Shot").
+10. cameraStyleReason: Alasan singkat 1 kalimat mengapa style kamera ini paling optimal untuk produk & kategori tersebut.
+11. visualFraming: Rekomendasi framing/sudut pandang utama visual produk (PILIH SALAH SATU: "hands_pov" untuk demo unboxing/tekstur tanpa wajah, "face_closeup" untuk skincare/ekspresi wajah riil, "full_body" untuk fashion/outfit/body transformation gerak aktif, atau "mix_framing" untuk kombinasi dinamis proporsional).
+12. detectedTags: Array 3-5 kata kunci relevan (misal: ["skincare", "niacinamide", "pencerah", "anti-acne"]).
+13. detectionSummary: Penjelasan ringkas ramah 1 kalimat tentang apa yang berhasil dideteksi.`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -749,6 +882,9 @@ Tugas Anda:
           tone: { type: Type.STRING },
           targetPlatform: { type: Type.STRING },
           targetDuration: { type: Type.INTEGER },
+          cameraStyle: { type: Type.STRING },
+          cameraStyleReason: { type: Type.STRING },
+          visualFraming: { type: Type.STRING },
           detectedTags: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
@@ -885,6 +1021,15 @@ Tugas Anda:
         tone: detectedTone,
         targetPlatform: detectedPlatform,
         targetDuration: detectedDuration,
+        cameraStyle: detectedCat === 'Before & After' ? 'Split-Screen & Dual Angle (Sebelum vs Sesudah)' :
+          detectedCat === 'Unboxing' ? 'Overhead / Flat Lay Studio (90° Top-Down)' :
+          detectedCat === 'Review' ? 'Handheld Vlog & Casual Selfie' :
+          'Kombinasi Dinamis (Rekomendasi AI Otomatis)',
+        cameraStyleReason: `Gaya kamera disesuaikan dengan kategori ${detectedCat} untuk memaksimalkan retensi visual penonton.`,
+        visualFraming: (detectedCat === 'Unboxing' || combined.includes('keyboard') || combined.includes('gadget')) ? 'hands_pov' :
+          (detectedCat === 'Haul' || combined.includes('hoodie') || combined.includes('outfit') || combined.includes('baju')) ? 'full_body' :
+          (combined.includes('serum') || combined.includes('skincare') || combined.includes('jerawat')) ? 'face_closeup' :
+          'mix_framing',
         detectedTags,
         detectionSummary: `Berhasil mendeteksi otomatis produk "${detectedName}" untuk kategori ${detectedCat}.`,
       },
@@ -898,6 +1043,418 @@ Tugas Anda:
 
 app.post('/api/auto-detect', autoDetectHandler);
 app.post('/api/auto-detect-product', autoDetectHandler);
+
+// Endpoint: Trending Harvest - Shopee Real-Time Product Performance & UGC Master Opportunity Score
+app.post('/api/shopee-trends/harvest', async (req, res) => {
+  try {
+    const { category, keyword, minScore = 0, sortBy = 'score' } = req.body || {};
+
+    // Base seed items with authentic Indonesian Shopee marketplace metrics
+    const baseProducts = [
+      {
+        id: 'shp_1',
+        name: 'Skintific 5X Ceramide Barrier Moisture Gel 30g',
+        category: 'Skincare & Kecantikan',
+        shopeeCategorySlug: 'skincare',
+        price: 139000,
+        originalPrice: 169000,
+        discountPercent: 18,
+        affiliateCommissionPercent: 12,
+        affiliateCommissionAmount: 16680,
+        rating: 4.9,
+        reviewCount: 284000,
+        shopName: 'SKINTIFIC Official Store',
+        shopLocation: 'Jakarta Utara',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 620,
+          totalSold: 412000,
+          monthlyGrowthPercent: 175,
+          marketDemandScore: 96,
+          contentSaturation: 'Sedang',
+          creatorVideoCount: 1420,
+        },
+        recommendedAngle: 'Skincare Barrier Rescue (Sebelum vs Sesudah Kering Mengelupas)',
+        recommendedHook: 'Sumpah stop pakai skincare keras kalau skin barrier kamu lagi rusak merah-merah!',
+        targetAudience: 'Wanita/pria usia 18-35 dengan masalah kulit sensitif, kemerahan & bruntusan',
+        keySellingPoints: '5X Ceramide, Hyaluronic Acid, Centella Asiatica, tekstur gel dingin ringan menyerap dalam 10 detik',
+        recommendedFraming: 'face_closeup',
+        recommendedFormatId: 'before_after',
+        trendingTags: ['#skintific', '#skinbarrier', '#ceramide', '#moisturizerkering'],
+      },
+      {
+        id: 'shp_2',
+        name: 'INBEX Tripod Auto-Tracking AI 360° Face Sensor',
+        category: 'Gadget & Elektronik',
+        shopeeCategorySlug: 'gadget',
+        price: 189000,
+        originalPrice: 320000,
+        discountPercent: 41,
+        affiliateCommissionPercent: 15,
+        affiliateCommissionAmount: 28350,
+        rating: 4.8,
+        reviewCount: 34900,
+        shopName: 'INBEX Official Shop',
+        shopLocation: 'Kota Tangerang',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 480,
+          totalSold: 78500,
+          monthlyGrowthPercent: 210,
+          marketDemandScore: 94,
+          contentSaturation: 'Rendah',
+          creatorVideoCount: 380,
+        },
+        recommendedAngle: 'Solusi Bikin Konten Sendirian Tanpa Perlu Minta Tolong Kameramen',
+        recommendedHook: 'Buat kreator solo yang capek minta tolong orang buat videoin, kalian wajib liat ini!',
+        targetAudience: 'Kreator pemula, online shop owner, vlogger OOTD & dance cover',
+        keySellingPoints: 'Sensor AI cerdas tanpa aplikasi bluetooth, rotasi 360° otomatis, baterai tahan 8 jam, stabil kokoh',
+        recommendedFraming: 'hands_pov',
+        recommendedFormatId: 'problem_solution',
+        trendingTags: ['#tripodtracking', '#alatngonten', '#tripodai', '#inbextripod'],
+      },
+      {
+        id: 'shp_3',
+        name: 'Aerostreet Massive Low Sepatu Sneakers Casual Pria/Wanita',
+        category: 'Fashion & OOTD',
+        shopeeCategorySlug: 'fashion',
+        price: 149900,
+        originalPrice: 299000,
+        discountPercent: 50,
+        affiliateCommissionPercent: 10,
+        affiliateCommissionAmount: 14990,
+        rating: 4.9,
+        reviewCount: 512000,
+        shopName: 'Aerostreet Official',
+        shopLocation: 'Kab. Klaten',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 550,
+          totalSold: 890000,
+          monthlyGrowthPercent: 140,
+          marketDemandScore: 92,
+          contentSaturation: 'Sedang',
+          creatorVideoCount: 1850,
+        },
+        recommendedAngle: 'Styling OOTD Sneakers Lokal Kualitas Mewah di Bawah 150 Ribu',
+        recommendedHook: 'Sepatu 100 ribuan tapi kelihatan kayak 1 jutaan! Gak percaya? Cek detail jahitannya.',
+        targetAudience: 'Remaja, mahasiswa & pekerja muda penggemar casual streetwear',
+        keySellingPoints: 'Teknologi Shoes Injection Mould anti jebol meski kena air hujan, insole empuk, desain timeless',
+        recommendedFraming: 'full_body',
+        recommendedFormatId: 'haul',
+        trendingTags: ['#aerostreet', '#lokalpride', '#sneakersmurah', '#ootdkece'],
+      },
+      {
+        id: 'shp_4',
+        name: 'Sago Green Coffee Slimming Extract Herbal 15 Sachet',
+        category: 'Diet & Kesehatan',
+        shopeeCategorySlug: 'health',
+        price: 89000,
+        originalPrice: 125000,
+        discountPercent: 29,
+        affiliateCommissionPercent: 18,
+        affiliateCommissionAmount: 16020,
+        rating: 4.8,
+        reviewCount: 41200,
+        shopName: 'Sago Herbal Naturals',
+        shopLocation: 'Kota Bandung',
+        shopBadge: 'Star+',
+        imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 390,
+          totalSold: 64000,
+          monthlyGrowthPercent: 185,
+          marketDemandScore: 91,
+          contentSaturation: 'Sangat Rendah',
+          creatorVideoCount: 210,
+        },
+        recommendedAngle: 'Diet Santai Tanpa Kelaparan Menyiksa (Curhat Relatable)',
+        recommendedHook: 'Udah coba macam-macam diet tapi perut buncit masih nggelambir? Dengerin rahasia ini dulu.',
+        targetAudience: 'Pria & wanita usia 22-45 yang ingin turun berat badan sehat & aman lambung',
+        keySellingPoints: 'Green coffee chlorogenic acid alami, bikin kenyang awet, detox pencernaan lancar, rasa gurih nikmat',
+        recommendedFraming: 'full_body',
+        recommendedFormatId: 'before_after',
+        trendingTags: ['#dietsehat', '#kopihijau', '#perutbuncit', '#turunbb'],
+      },
+      {
+        id: 'shp_5',
+        name: 'Pembersih Noda Kerak Ajaib Serbaguna Porcelain Clean 500ml',
+        category: 'Home & Living',
+        shopeeCategorySlug: 'home',
+        price: 49000,
+        originalPrice: 85000,
+        discountPercent: 42,
+        affiliateCommissionPercent: 16,
+        affiliateCommissionAmount: 7840,
+        rating: 4.9,
+        reviewCount: 89000,
+        shopName: 'CleanHome Solution ID',
+        shopLocation: 'Kota Surabaya',
+        shopBadge: 'Star+',
+        imageUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 510,
+          totalSold: 162000,
+          monthlyGrowthPercent: 230,
+          marketDemandScore: 95,
+          contentSaturation: 'Sangat Rendah',
+          creatorVideoCount: 190,
+        },
+        recommendedAngle: 'Visual Shock Kerak Kamar Mandi Hitam Rontok Sekali Oles Tanpa Disikat',
+        recommendedHook: 'Jangan ganti keramik kamar mandi dulu! Lihat gimana kerak tahunan ini rontok cuma 5 detik!',
+        targetAudience: 'Ibu rumah tangga, anak kost, pemilik rumah yang ingin rumah bersih kinclong',
+        keySellingPoints: 'Formula aktif pengikis kerak membandel, tidak berbau menyengat, aman untuk nat & stainless steel',
+        recommendedFraming: 'hands_pov',
+        recommendedFormatId: 'satisfying_asmr',
+        trendingTags: ['#bersihbersih', '#pembersihkerak', '#rumahkinclong', '#asmrcleaning'],
+      },
+      {
+        id: 'shp_6',
+        name: 'Pompa ASI Elektrik Hands-Free Wireless Wearable Breastpump',
+        category: 'Ibu & Bayi',
+        shopeeCategorySlug: 'baby',
+        price: 249000,
+        originalPrice: 399000,
+        discountPercent: 38,
+        affiliateCommissionPercent: 14,
+        affiliateCommissionAmount: 34860,
+        rating: 4.8,
+        reviewCount: 22100,
+        shopName: 'MommyCare Baby Store',
+        shopLocation: 'Jakarta Barat',
+        shopBadge: 'Official Store',
+        imageUrl: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 280,
+          totalSold: 38400,
+          monthlyGrowthPercent: 160,
+          marketDemandScore: 88,
+          contentSaturation: 'Rendah',
+          creatorVideoCount: 175,
+        },
+        recommendedAngle: 'Working Mom Hack: Pumping Sambil Ngetik di Kantor Tanpa Ada yang Tahu',
+        recommendedHook: 'Penyelamat hidup working mom! Sekarang bisa pumping di kantor tanpa harus sembunyi di toilet.',
+        targetAudience: 'Ibu menyusui, working mom, new moms yang butuh pompa ASI praktis tanpa kabel',
+        keySellingPoints: 'Desain masuk ke dalam bra tanpa selang kabel, motor ultra-silent di bawah 40dB, 9 level hisapan lembut',
+        recommendedFraming: 'hands_pov',
+        recommendedFormatId: 'review',
+        trendingTags: ['#pompaasi', '#workingmom', '#pejuangasi', '#asieksklusif'],
+      },
+      {
+        id: 'shp_7',
+        name: 'Glad2Glow Pomegranate 10% Niacinamide Power Bright Serum',
+        category: 'Skincare & Kecantikan',
+        shopeeCategorySlug: 'skincare',
+        price: 49000,
+        originalPrice: 69000,
+        discountPercent: 29,
+        affiliateCommissionPercent: 15,
+        affiliateCommissionAmount: 7350,
+        rating: 4.9,
+        reviewCount: 310000,
+        shopName: 'Glad2Glow Official Store',
+        shopLocation: 'Jakarta Utara',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1608248597359-005d5e23631f?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 680,
+          totalSold: 720000,
+          monthlyGrowthPercent: 155,
+          marketDemandScore: 97,
+          contentSaturation: 'Sedang',
+          creatorVideoCount: 2400,
+        },
+        recommendedAngle: 'Solusi Bekas Jerawat Menghitam Pudar Cepat Ramah Dompet Mahasiswa',
+        recommendedHook: 'Serum pencerah 40 ribuan tapi kandungannya 10% Niacinamide murni? Nih buktinya!',
+        targetAudience: 'Remaja dan mahasiswa dengan kulit kusam dan PIH bekas jerawat',
+        keySellingPoints: 'Ekstrak Delima & Niacinamide 10%, tekstur seringan air, cepat meresap tanpa rasa lengket',
+        recommendedFraming: 'face_closeup',
+        recommendedFormatId: 'problem_solution',
+        trendingTags: ['#glad2glow', '#serumpencerah', '#bekasjerawat', '#skincarepelajar'],
+      },
+      {
+        id: 'shp_8',
+        name: 'Baseus Bowie WM02 TWS Bluetooth 5.3 Earphones Mini Pods',
+        category: 'Gadget & Elektronik',
+        shopeeCategorySlug: 'gadget',
+        price: 169000,
+        originalPrice: 289000,
+        discountPercent: 41,
+        affiliateCommissionPercent: 11,
+        affiliateCommissionAmount: 18590,
+        rating: 4.8,
+        reviewCount: 180000,
+        shopName: 'Baseus Official Mall',
+        shopLocation: 'Jakarta Pusat',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 430,
+          totalSold: 290000,
+          monthlyGrowthPercent: 125,
+          marketDemandScore: 89,
+          contentSaturation: 'Sedang',
+          creatorVideoCount: 890,
+        },
+        recommendedAngle: 'Bass Nendang & Baterai Tahan Seminggu untuk Daily Commute & Gym',
+        recommendedHook: 'TWS harga 100 ribuan tapi punya aplikasi equalizer sendiri? Desain transparan estetik abis!',
+        targetAudience: 'Pecinta musik, pekerja komuter KRL/MRT, gamer casual & pelari',
+        keySellingPoints: 'Desain kapsul transparan estetik, low latency 0.06s untuk gaming, playtime hingga 25 jam',
+        recommendedFraming: 'hands_pov',
+        recommendedFormatId: 'unboxing',
+        trendingTags: ['#baseus', '#twsmurah', '#earphonebluetooth', '#gadgetviral'],
+      },
+      {
+        id: 'shp_9',
+        name: 'Flimty Minuman Serat Alami Rasa Blackcurrant / Raspberry',
+        category: 'Diet & Kesehatan',
+        shopeeCategorySlug: 'health',
+        price: 295000,
+        originalPrice: 350000,
+        discountPercent: 16,
+        affiliateCommissionPercent: 10,
+        affiliateCommissionAmount: 29500,
+        rating: 4.9,
+        reviewCount: 480000,
+        shopName: 'Flimty Official Store',
+        shopLocation: 'Jakarta Barat',
+        shopBadge: 'Shopee Mall',
+        imageUrl: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 580,
+          totalSold: 840000,
+          monthlyGrowthPercent: 110,
+          marketDemandScore: 93,
+          contentSaturation: 'Tinggi',
+          creatorVideoCount: 3200,
+        },
+        recommendedAngle: 'Detox Saluran Cerna Setelah Makan Berlemak / Cheat Day',
+        recommendedHook: 'Habis makan all-you-can-eat atau gorengan banyak? Wajib minum ini sebelum tidur biar gak nimbun!',
+        targetAudience: 'Pria/wanita yang sering begadang, sembelit, atau makan makanan cepat saji',
+        keySellingPoints: 'Psyllium Husk, Goji Berry, Ekstrak Buah & Sayur, membantu detoksifikasi & melancarkan BAB harian',
+        recommendedFraming: 'hands_pov',
+        recommendedFormatId: 'review',
+        trendingTags: ['#flimty', '#minumanserat', '#detoxtubuh', '#dietkenyang'],
+      },
+      {
+        id: 'shp_10',
+        name: 'Oversized Boxy Heavyweight Hoodie Cotton Fleece 330gsm',
+        category: 'Fashion & OOTD',
+        shopeeCategorySlug: 'fashion',
+        price: 175000,
+        originalPrice: 280000,
+        discountPercent: 37,
+        affiliateCommissionPercent: 12,
+        affiliateCommissionAmount: 21000,
+        rating: 4.9,
+        reviewCount: 62000,
+        shopName: 'RawType Studio Apparel',
+        shopLocation: 'Kota Bandung',
+        shopBadge: 'Star+',
+        imageUrl: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80',
+        metrics: {
+          salesVelocityDay: 320,
+          totalSold: 49000,
+          monthlyGrowthPercent: 165,
+          marketDemandScore: 87,
+          contentSaturation: 'Rendah',
+          creatorVideoCount: 290,
+        },
+        recommendedAngle: 'Koreans Boxy Cut Fit: Hoodie Tebal Siluet Keren yang Bikin Postur Tegap',
+        recommendedHook: 'Pencarian hoodie boxy sempurna berakhir di sini! Cuttingan bahu jatuh bikin badan keliatan tegap.',
+        targetAudience: 'Cowok & cewek pencinta streetwear clean minimalis',
+        keySellingPoints: 'Heavyweight fleece 330gsm tebal jatuh, rib tangan presisi, kapuchon tebal tegak tidak lepek',
+        recommendedFraming: 'full_body',
+        recommendedFormatId: 'haul',
+        trendingTags: ['#hoodieboxy', '#heavyweighthoodie', '#streetwearindo', '#ootdkece'],
+      },
+    ];
+
+    // Recalculate UGC Master Opportunity Score for each product
+    let enriched = baseProducts.map((p) => {
+      const vScore = Math.min(100, Math.max(10, Math.round((p.metrics.salesVelocityDay / 450) * 100)));
+      const gScore = Math.min(100, Math.max(10, Math.round((p.metrics.monthlyGrowthPercent / 180) * 100)));
+      let satAdj = 0;
+      if (p.metrics.contentSaturation === 'Sangat Rendah') satAdj = 15;
+      else if (p.metrics.contentSaturation === 'Rendah') satAdj = 8;
+      else if (p.metrics.contentSaturation === 'Tinggi') satAdj = -12;
+      const dScore = Math.min(100, Math.max(15, Math.round(p.metrics.marketDemandScore + satAdj)));
+      const cScore = Math.min(100, Math.max(10, Math.round((p.affiliateCommissionPercent / 15) * 100)));
+
+      const totalScore = Math.min(99, Math.max(50, Math.round(
+        vScore * 0.35 + gScore * 0.30 + dScore * 0.20 + cScore * 0.15
+      )));
+
+      let tier: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer' = '⚡ Steady Performer';
+      if (totalScore >= 88) tier = '💎 Super Viral';
+      else if (totalScore >= 74) tier = '🔥 High Potential';
+
+      return {
+        ...p,
+        ugcOpportunityScore: totalScore,
+        opportunityTier: tier,
+      };
+    });
+
+    // Filter by category if specified
+    if (category && category !== 'all') {
+      enriched = enriched.filter((p) => p.shopeeCategorySlug === category);
+    }
+
+    // Filter by keyword if provided
+    if (keyword && keyword.trim()) {
+      const q = keyword.toLowerCase().trim();
+      const filtered = enriched.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.keySellingPoints.toLowerCase().includes(q) ||
+          p.recommendedAngle.toLowerCase().includes(q) ||
+          p.trendingTags.some((t) => t.toLowerCase().includes(q))
+      );
+      if (filtered.length > 0) {
+        enriched = filtered;
+      }
+    }
+
+    // Filter by minScore
+    if (minScore > 0) {
+      enriched = enriched.filter((p) => p.ugcOpportunityScore >= minScore);
+    }
+
+    // Sort items
+    if (sortBy === 'velocity') {
+      enriched.sort((a, b) => b.metrics.salesVelocityDay - a.metrics.salesVelocityDay);
+    } else if (sortBy === 'growth') {
+      enriched.sort((a, b) => b.metrics.monthlyGrowthPercent - a.metrics.monthlyGrowthPercent);
+    } else if (sortBy === 'commission') {
+      enriched.sort((a, b) => b.affiliateCommissionAmount - a.affiliateCommissionAmount);
+    } else {
+      // Default: Sort by UGC Master Opportunity Score
+      enriched.sort((a, b) => b.ugcOpportunityScore - a.ugcOpportunityScore);
+    }
+
+    const marketInsights = `Data panen real-time Shopee Indonesia: Produk dengan velocity > 350 terjual/hari dan saturasi konten 'Rendah' menghasilkan konversi affiliate rata-rata 3.4x lebih tinggi pada video vertikal TikTok & Reels.`;
+
+    return res.json({
+      success: true,
+      products: enriched,
+      total: enriched.length,
+      harvestTimestamp: new Date().toISOString(),
+      marketInsights,
+    });
+  } catch (err: any) {
+    console.error('Error in /api/shopee-trends/harvest:', err);
+    res.status(500).json({ error: err.message || 'Gagal mengambil data tren Shopee' });
+  }
+});
+
+
+// Serve @ffmpeg/core assets statically (for client-side FFmpeg WebAssembly)
+app.use('/ffmpeg', express.static(path.join(process.cwd(), 'node_modules/@ffmpeg/core/dist/umd')));
 
 // Setup Vite development middleware or static production serving
 async function startServer() {

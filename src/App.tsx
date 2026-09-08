@@ -10,7 +10,10 @@ import { AIGeneratorModal } from './components/AIGeneratorModal';
 import { HookGeneratorModal } from './components/HookGeneratorModal';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { ExportModal } from './components/ExportModal';
+import { VideoExportModal } from './components/VideoExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { PasswordGate } from './components/PasswordGate';
+import { TrendingHarvestDashboard } from './components/TrendingHarvestDashboard';
 import { UGC_CATEGORIES } from './data/categories';
 import {
   Scene,
@@ -21,8 +24,18 @@ import {
   StoryboardViewMode,
   ShotItem,
   HookVariant,
+  GoogleUserProfile,
+  ShopeeTrendingProduct,
 } from './types';
-import { copyToClipboard, generateId } from './utils/helpers';
+import { initAuth, googleSignIn, googleSignOut } from './services/googleAuth';
+import { copyToClipboard, generateId, sanitizeStoryboardForJSON } from './utils/helpers';
+import {
+  saveProjectsToLocalStorage,
+  saveProjectsToIndexedDB,
+  loadProjectsFromIndexedDB,
+  STORAGE_KEY,
+  CURRENT_PROJECT_ID_KEY,
+} from './utils/storage';
 import {
   Plus,
   Sparkles,
@@ -40,9 +53,6 @@ import {
   Check
 } from 'lucide-react';
 
-const STORAGE_KEY = 'ugc_master_projects_v1';
-const CURRENT_PROJECT_ID_KEY = 'ugc_master_current_proj_id';
-
 // Initial project matching UGC Before & After format with 6 rich scenes
 const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
   id: 'proj_before_after_sago',
@@ -50,6 +60,8 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
   categoryId: 'before_after',
   productName: 'Sago Green Coffee',
   targetAudience: 'Pria/wanita diet & sehat',
+  visualFraming: 'full_body',
+  productImageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80',
   caption: 'Cobain Sago Green Coffee! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -177,8 +189,32 @@ export default function App() {
     return INITIAL_BEFORE_AFTER_PROJECT.id;
   });
 
-  // View Mode: 'cards' (editor) | 'table' (script breakdown) | 'phone_preview' (9:16 simulation)
+  // View Mode: 'cards' (editor) | 'table' (script breakdown) | 'phone_preview' (9:16 simulation) | 'trending_harvest'
   const [viewMode, setViewMode] = useState<StoryboardViewMode>('cards');
+
+  // Application Password Gate State (Initial security gate: Ilalang@27)
+  const [isAppUnlocked, setIsAppUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ugc_studio_auth_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleUnlockApp = () => {
+    try {
+      localStorage.setItem('ugc_studio_auth_unlocked', 'true');
+    } catch {}
+    setIsAppUnlocked(true);
+    showToast('🔓 Akses Berhasil Terbuka! Selamat datang di UGC Studio.');
+  };
+
+  const handleLockApp = () => {
+    try {
+      localStorage.removeItem('ugc_studio_auth_unlocked');
+    } catch {}
+    setIsAppUnlocked(false);
+  };
 
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [isCaptionOpen, setIsCaptionOpen] = useState(true);
@@ -187,15 +223,66 @@ export default function App() {
 
   // Modals state
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
+  const [aiModalInitialParams, setAiModalInitialParams] = useState<Partial<AIGenerateParams> | null>(null);
   const [isHooksModalOpen, setIsHooksModalOpen] = useState(false);
   const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [exportModalInitialTab, setExportModalInitialTab] = useState<'table' | 'caption' | 'script' | 'capcut' | 'json'>('table');
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [isJsonCopied, setIsJsonCopied] = useState(false);
 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [enhancingSceneId, setEnhancingSceneId] = useState<string | null>(null);
+
+  // Google Flow / Google Auth Credentials state
+  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+
+  // Initialize Google Auth on mount & hydrate from IndexedDB
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user) => setGoogleUser(user),
+      (token) => setGoogleAccessToken(token)
+    );
+
+    // Hydrate projects from IndexedDB if available (contains any cached offline images)
+    loadProjectsFromIndexedDB()
+      .then((dbProjects) => {
+        if (dbProjects && Array.isArray(dbProjects) && dbProjects.length > 0) {
+          setProjects(dbProjects);
+        }
+      })
+      .catch(() => {});
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setGoogleUser(result.profile);
+        setGoogleAccessToken(result.accessToken);
+        showToast(`👋 Halo ${result.profile.displayName || 'Kreator'}! Google Flow & Drive terhubung.`);
+      }
+      // If result is null, user cancelled or closed popup gracefully
+    } catch (err: any) {
+      console.warn('Google Sign-In caught notice:', err);
+      showToast(err.message || 'Gagal masuk dengan Google');
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await googleSignOut();
+      setGoogleUser(null);
+      setGoogleAccessToken(null);
+      showToast('Berhasil keluar dari akun Google.');
+    } catch (err) {
+      showToast('Gagal logout.');
+    }
+  };
 
   // Active Project
   const currentProject = projects.find((p) => p.id === currentProjectId) || projects[0] || INITIAL_BEFORE_AFTER_PROJECT;
@@ -205,23 +292,20 @@ export default function App() {
     UGC_CATEGORIES.find((c) => c.id === currentProject?.categoryId) ||
     UGC_CATEGORIES[8]; // before_after default
 
-  // Generate full comprehensive storyboard JSON object
+  // Generate full comprehensive storyboard JSON object (without image data for Google Flow)
   const getFullStoryboardJSON = () => {
-    return JSON.stringify(
-      {
-        id: currentProject.id,
-        title: currentProject.title,
-        category: activeCategory.name,
-        categoryId: currentProject.categoryId,
-        totalDuration: currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0),
-        caption: currentProject.caption || '',
-        hookVariants: currentProject.hookVariants || [],
-        scenes: currentProject.scenes,
-        exportedAt: new Date().toISOString(),
-      },
-      null,
-      2
-    );
+    const rawData = {
+      id: currentProject.id,
+      title: currentProject.title,
+      category: activeCategory.name,
+      categoryId: currentProject.categoryId,
+      totalDuration: currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0),
+      caption: currentProject.caption || '',
+      hookVariants: currentProject.hookVariants || [],
+      scenes: currentProject.scenes,
+      exportedAt: new Date().toISOString(),
+    };
+    return JSON.stringify(sanitizeStoryboardForJSON(rawData), null, 2);
   };
 
   // 1-Click Copy Storyboard JSON to clipboard
@@ -233,7 +317,27 @@ export default function App() {
       showToast('JSON Storyboard berhasil disalin ke clipboard! 📋');
       setTimeout(() => setIsJsonCopied(false), 2500);
     } else {
-      showToast('Gagal menyalin JSON ke clipboard.');
+      // Direct fallback: Download JSON file so the user is never blocked by browser iframe clipboard restrictions
+      try {
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const safeTitle = (currentProject.title || 'storyboard')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_');
+        a.href = url;
+        a.download = `${safeTitle}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setIsJsonCopied(true);
+        showToast('Clipboard dibatasi browser. File JSON otomatis diunduh! 📁');
+        setTimeout(() => setIsJsonCopied(false), 2500);
+      } catch {
+        handleOpenExportWithTab('json');
+        showToast('Buka tab JSON untuk menyalin secara manual 📋');
+      }
     }
   };
 
@@ -242,20 +346,11 @@ export default function App() {
     setIsExportModalOpen(true);
   };
 
-  // Save projects to localStorage on change
+  // Save projects resiliently to localStorage (quota-safe, base64-stripped) and IndexedDB (full data)
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-    } catch (e) {
-      console.error('Failed to save projects to localStorage:', e);
-    }
-  }, [projects]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CURRENT_PROJECT_ID_KEY, currentProjectId);
-    } catch {}
-  }, [currentProjectId]);
+    saveProjectsToLocalStorage(projects, currentProjectId);
+    saveProjectsToIndexedDB(projects);
+  }, [projects, currentProjectId]);
 
   // Toast Helper
   const showToast = (msg: string) => {
@@ -477,10 +572,19 @@ export default function App() {
           categoryId: matchedCat.id,
           productName: params.productName,
           targetAudience: params.targetAudience,
+          productImageUrl: params.productImage,
+          cameraStyle: params.cameraStyle,
+          visualFraming: params.visualFraming,
+          marketingFramework: params.marketingFramework,
+          hookStrategy: params.hookStrategy,
+          ctaPreset: params.ctaPreset,
           caption: resData.data.caption || `Cobain ${params.productName}! Hasil nyata bikin makin pede. Cek keranjang kuning sekarang! ✨ #RacunTikTok #fyp #TikTokShop`.slice(0, 150),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          scenes: genScenes,
+          scenes: genScenes.map((sc) => ({
+            ...sc,
+            imageUrl: sc.imageUrl || params.productImage,
+          })),
         };
 
         setProjects((prev) => [newProj, ...prev]);
@@ -496,6 +600,24 @@ export default function App() {
     } finally {
       setIsGeneratingAI(false);
     }
+  };
+
+  // Pre-fill AI Generator from Trending Harvest Shopee Product
+  const handleGenerateStoryboardForProduct = (product: ShopeeTrendingProduct) => {
+    setAiModalInitialParams({
+      productName: product.name,
+      category: product.category,
+      targetAudience: product.targetAudience,
+      keySellingPoints: product.keySellingPoints,
+      visualFraming: product.recommendedFraming,
+      productImage: product.imageUrl,
+      tone: 'Santai, Relatable & Meyakinkan',
+      targetPlatform: 'Shopee Video / TikTok Shop',
+      hookStrategy: 'curiosity_gap',
+      marketingFramework: 'problem_agitation_solution',
+    });
+    setIsAIGeneratorOpen(true);
+    showToast(`🎯 Form AI terisi otomatis untuk produk: ${product.name.slice(0, 30)}...`);
   };
 
   // Apply viral hook to Scene 1
@@ -717,6 +839,11 @@ export default function App() {
 
   const totalDuration = currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0);
 
+  // Security Gate: require password Ilalang@27 on first open
+  if (!isAppUnlocked) {
+    return <PasswordGate onUnlock={handleUnlockApp} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#070a12] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       
@@ -725,6 +852,7 @@ export default function App() {
         title={currentProject.title}
         categoryName={activeCategory.name}
         categoryBadge={activeCategory.badgeText}
+        visualFraming={currentProject.visualFraming}
         scenes={currentProject.scenes}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -733,10 +861,15 @@ export default function App() {
         onOpenHooksModal={() => setIsHooksModalOpen(true)}
         onOpenTeleprompter={() => setIsTeleprompterOpen(true)}
         onOpenExportModal={() => handleOpenExportWithTab('table')}
+        onOpenVideoModal={() => setIsVideoModalOpen(true)}
         onOpenProjectsModal={() => setIsProjectsModalOpen(true)}
         onAddScene={handleAddScene}
         onCopyJSON={handleCopyJSON}
         isJsonCopied={isJsonCopied}
+        googleUser={googleUser}
+        onGoogleLogin={handleGoogleLogin}
+        onGoogleLogout={handleGoogleLogout}
+        onLockApp={handleLockApp}
       />
 
       {/* Main Workspace Layout */}
@@ -751,11 +884,17 @@ export default function App() {
           currentProjectId={currentProject.id}
           onSelectProject={(id) => setCurrentProjectId(id)}
           onCreateNewProject={handleCreateNewProject}
+          onOpenTrendingHarvest={() => setViewMode('trending_harvest')}
         />
 
-        {/* Main Content Area */}
-        <main className="flex-1 bg-[#070a12] overflow-y-auto p-4 md:p-6 lg:p-7 custom-scrollbar">
-          <div className="max-w-6xl mx-auto space-y-5">
+        {/* Main Content Area: Trending Harvest OR Storyboard Editor Modes */}
+        {viewMode === 'trending_harvest' ? (
+          <TrendingHarvestDashboard
+            onGenerateStoryboardForProduct={handleGenerateStoryboardForProduct}
+          />
+        ) : (
+          <main className="flex-1 bg-[#070a12] overflow-y-auto p-4 md:p-6 lg:p-7 custom-scrollbar">
+            <div className="max-w-6xl mx-auto space-y-5">
             
             {/* Context Bar: Current Format, Summary & Quick Triggers */}
             <div className="bg-[#0e1320] border border-[#1b253b] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
@@ -771,6 +910,14 @@ export default function App() {
                     <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-600/40 px-2 py-0.5 rounded-full font-bold uppercase">
                       {activeCategory.badgeText}
                     </span>
+                    {currentProject.visualFraming && (
+                      <span className="text-[10px] bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                        {currentProject.visualFraming === 'hands_pov' && '🖐️ Hanya Tangan (POV)'}
+                        {currentProject.visualFraming === 'face_closeup' && '👤 Wajah & Ekspresi'}
+                        {currentProject.visualFraming === 'full_body' && '🧍 Full Body'}
+                        {currentProject.visualFraming === 'mix_framing' && '🔀 Mix Framing'}
+                      </span>
+                    )}
                     <span className="text-[11px] text-emerald-400 font-mono font-bold bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-md">
                       {totalDuration} Detik • {currentProject.scenes.length} Adegan
                     </span>
@@ -819,6 +966,15 @@ export default function App() {
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
                   <span>Pilih 5 Hook Viral</span>
+                </button>
+
+                <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-[#141b2c] hover:bg-purple-900/40 text-purple-300 hover:text-purple-100 text-xs font-semibold px-3 py-1.5 rounded-xl border border-purple-500/40 transition-all shadow-sm active:scale-95"
+                  title="Pratinjau & Render video utuh MP4 menggunakan FFmpeg di browser"
+                >
+                  <Film className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Preview Video (MP4)</span>
                 </button>
 
                 <button
@@ -991,6 +1147,8 @@ export default function App() {
                 scenes={currentProject.scenes}
                 title={currentProject.title}
                 categoryName={activeCategory.name}
+                productImageUrl={currentProject.productImageUrl}
+                onOpenVideoExport={() => setIsVideoModalOpen(true)}
                 onSelectScene={(idx) => {
                   setViewMode('cards');
                   setTimeout(() => {
@@ -1023,6 +1181,7 @@ export default function App() {
 
           </div>
         </main>
+        )}
       </div>
 
       {/* Floating Toast Notification */}
@@ -1036,10 +1195,14 @@ export default function App() {
       {/* MODALS */}
       <AIGeneratorModal
         isOpen={isAIGeneratorOpen}
-        onClose={() => setIsAIGeneratorOpen(false)}
+        onClose={() => {
+          setIsAIGeneratorOpen(false);
+          setAiModalInitialParams(null);
+        }}
         currentCategoryName={activeCategory.name}
         onGenerate={handleGenerateStoryboard}
         isGenerating={isGeneratingAI}
+        initialParams={aiModalInitialParams}
       />
 
       <HookGeneratorModal
@@ -1067,6 +1230,33 @@ export default function App() {
         hookVariants={currentProject.hookVariants}
         initialTab={exportModalInitialTab}
         onImportJSON={handleImportJSON}
+        onOpenVideoModal={() => setIsVideoModalOpen(true)}
+        googleUser={googleUser}
+        googleAccessToken={googleAccessToken}
+        onGoogleLogin={handleGoogleLogin}
+      />
+
+      <VideoExportModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        scenes={currentProject.scenes}
+        title={currentProject.title}
+        categoryName={activeCategory.name}
+        productImageUrl={currentProject.productImageUrl}
+        googleUser={googleUser}
+        googleAccessToken={googleAccessToken}
+        onGoogleLogin={handleGoogleLogin}
+        onUpdateProductImage={(newUrl) => {
+          updateCurrentProject((p) => ({
+            ...p,
+            productImageUrl: newUrl || undefined,
+            scenes: p.scenes.map((sc) => ({
+              ...sc,
+              imageUrl: sc.imageUrl || newUrl || undefined,
+            })),
+          }));
+          showToast('Foto referensi produk berhasil diperbarui! 📸');
+        }}
       />
 
       <ProjectManagerModal

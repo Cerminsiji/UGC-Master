@@ -15,7 +15,8 @@ import {
   Share2,
   Disc3,
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  Film
 } from 'lucide-react';
 import { Scene } from '../types';
 
@@ -23,6 +24,8 @@ interface PhoneSimulatorProps {
   scenes: Scene[];
   title: string;
   categoryName: string;
+  productImageUrl?: string;
+  onOpenVideoExport?: () => void;
   onSelectScene?: (index: number) => void;
 }
 
@@ -30,6 +33,8 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
   scenes,
   title,
   categoryName,
+  productImageUrl,
+  onOpenVideoExport,
   onSelectScene,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -146,6 +151,17 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+
+          {onOpenVideoExport && (
+            <button
+              onClick={onOpenVideoExport}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-md transition-all active:scale-95 border border-emerald-400/30"
+              title="Ekspor seluruh adegan menjadi video MP4 dengan FFmpeg"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Export MP4</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,23 +227,49 @@ export const PhoneSimulator: React.FC<PhoneSimulatorProps> = ({
             )}
 
             {/* Center Background Action Canvas */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#161f30] via-[#0d1424] to-[#080d18] flex flex-col items-center justify-center p-6 text-center">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#161f30] via-[#0d1424] to-[#080d18] flex flex-col items-center justify-center p-5 text-center overflow-hidden">
               
+              {/* Product Reference Background Image */}
+              {(currentScene.imageUrl || productImageUrl) && (
+                <>
+                  <img
+                    src={currentScene.imageUrl || productImageUrl}
+                    alt="Product Background"
+                    className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/60" />
+                </>
+              )}
+
+              {/* Product Photo Showcase Thumbnail */}
+              {(currentScene.imageUrl || productImageUrl) && (
+                <div className="relative mb-2.5 z-10">
+                  <img
+                    src={currentScene.imageUrl || productImageUrl}
+                    alt="Product Showcase"
+                    className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-2xl border-2 border-purple-500/50 shadow-2xl"
+                  />
+                  <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-purple-400/40 text-[8px] text-purple-200 font-bold whitespace-nowrap">
+                    📸 Produk
+                  </div>
+                </div>
+              )}
+
               {/* Visual Action Mockup Card */}
-              <div className="p-3.5 rounded-2xl bg-black/50 backdrop-blur-md border border-white/10 max-w-[90%] shadow-lg mb-4">
-                <div className="flex items-center justify-center gap-1.5 text-purple-300 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  <Eye className="w-3.5 h-3.5" />
+              <div className="p-3 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 max-w-[92%] shadow-lg mb-3 z-10">
+                <div className="flex items-center justify-center gap-1.5 text-purple-300 text-[10px] font-bold uppercase tracking-wider mb-0.5">
+                  <Eye className="w-3 h-3" />
                   <span>Aksi Visual</span>
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed italic">
+                <p className="text-xs text-slate-200 leading-relaxed italic line-clamp-3">
                   "{currentScene.visualAction || 'Visual adegan belum diisi'}"
                 </p>
               </div>
 
-              {/* Dynamic Popup Text (Simulating real TikTok bold sticker) */}
+              {/* Dynamic Popup Text (Simulating real TikTok bold sticker - Clean, steady, anti-anomaly) */}
               {currentScene.popupText ? (
-                <div className="animate-bounce duration-1000 mt-2 max-w-[95%]">
-                  <div className="bg-amber-400 text-black font-black text-sm sm:text-base px-3 py-1.5 rounded-lg shadow-2xl border-2 border-black tracking-tight transform -rotate-1 uppercase leading-tight">
+                <div className="mt-2 max-w-[95%] transition-all duration-300">
+                  <div className="bg-amber-400 text-black font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-lg shadow-2xl border-2 border-black tracking-tight uppercase leading-tight">
                     {currentScene.popupText}
                   </div>
                 </div>

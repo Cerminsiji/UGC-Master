@@ -13,10 +13,13 @@ import {
   Loader2,
   AlertCircle,
   Video,
-  Film
+  Film,
+  Cloud,
+  ExternalLink
 } from 'lucide-react';
-import { Scene, HookVariant } from '../types';
-import { copyToClipboard, formatDuration } from '../utils/helpers';
+import { Scene, HookVariant, GoogleUserProfile, StoryboardProject } from '../types';
+import { copyToClipboard, formatDuration, sanitizeStoryboardForJSON } from '../utils/helpers';
+import { uploadProjectToDrive, DriveUploadResult } from '../services/googleDrive';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -28,6 +31,10 @@ interface ExportModalProps {
   hookVariants?: HookVariant[];
   initialTab?: 'table' | 'caption' | 'script' | 'capcut' | 'json';
   onImportJSON: (importedScenes: Scene[], importedTitle?: string) => void;
+  onOpenVideoModal?: () => void;
+  googleUser?: GoogleUserProfile | null;
+  googleAccessToken?: string | null;
+  onGoogleLogin?: () => Promise<void> | void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -40,12 +47,57 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   hookVariants,
   initialTab = 'table',
   onImportJSON,
+  onOpenVideoModal,
+  googleUser,
+  googleAccessToken,
+  onGoogleLogin,
 }) => {
   const [activeTab, setActiveTab] = useState<'table' | 'caption' | 'script' | 'capcut' | 'json'>(initialTab);
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [caption, setCaption] = useState(initialCaption || '');
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Google Drive project save
+  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
+  const [driveSaveResult, setDriveSaveResult] = useState<DriveUploadResult | null>(null);
+  const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
+
+  const handleSaveProjectToDrive = async () => {
+    if (!googleUser || !googleAccessToken) {
+      if (onGoogleLogin) await onGoogleLogin();
+      return;
+    }
+
+    setIsSavingToDrive(true);
+    setDriveSaveError(null);
+
+    const projectPayload: StoryboardProject = {
+      id: `proj_${Date.now()}`,
+      title,
+      categoryId: categoryName.toLowerCase().replace(/\s+/g, '-'),
+      productName: title,
+      targetAudience: 'Target Audience UGC',
+      caption,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      scenes,
+      hookVariants,
+    };
+
+    try {
+      const result = await uploadProjectToDrive({
+        project: projectPayload,
+        accessToken: googleAccessToken,
+      });
+      setDriveSaveResult(result);
+    } catch (err: any) {
+      console.error('Save project to drive error:', err);
+      setDriveSaveError(err.message || 'Gagal menyimpan naskah ke Google Drive.');
+    } finally {
+      setIsSavingToDrive(false);
+    }
+  };
 
   useEffect(() => {
     if (initialTab) {
@@ -121,19 +173,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const getFullStoryboardJSON = () => {
-    return JSON.stringify(
-      {
-        title,
-        category: categoryName,
-        totalDuration,
-        caption,
-        hookVariants,
-        scenes,
-        exportedAt: new Date().toISOString(),
-      },
-      null,
-      2
-    );
+    const rawData = {
+      title,
+      category: categoryName,
+      totalDuration,
+      caption,
+      hookVariants,
+      scenes,
+      exportedAt: new Date().toISOString(),
+    };
+    return JSON.stringify(sanitizeStoryboardForJSON(rawData), null, 2);
   };
 
   const handleDownloadJSON = () => {
@@ -292,6 +341,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               Salin / Unduh
             </span>
           </button>
+
+          {onOpenVideoModal && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenVideoModal();
+              }}
+              className="ml-auto flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-purple-950/50 transition-all active:scale-95 whitespace-nowrap mb-1"
+              title="Render storyboard menjadi video MP4 dengan FFmpeg"
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Export Video MP4 (FFmpeg)</span>
+            </button>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -520,11 +583,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
-                  <span className="text-xs font-bold text-slate-200 block">
-                    Data Struktur JSON Storyboard
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-200 block">
+                      Data Struktur JSON Storyboard
+                    </span>
+                    <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded-full font-semibold">
+                      ✨ Tanpa Data Image (Google Flow Ready)
+                    </span>
+                  </div>
                   <span className="text-[11px] text-slate-400">
-                    Format lengkap untuk integrasi AI, generator, backup, atau import ke project lain.
+                    Format ringan tanpa base64/url image, siap di-upload & diproses pada Google Flow atau automasi lainnya.
                   </span>
                 </div>
 
@@ -550,7 +618,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleCopyText(JSON.stringify(scenes, null, 2), 'scenes_only')}
+                    onClick={() => handleCopyText(JSON.stringify(sanitizeStoryboardForJSON(scenes), null, 2), 'scenes_only')}
                     className="flex items-center gap-1 bg-[#182133] hover:bg-[#202c42] text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-purple-800/40 transition-all active:scale-95"
                     title="Hanya salin array daftar adegan"
                   >
@@ -563,6 +631,25 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       <>
                         <Copy className="w-3.5 h-3.5" />
                         <span>Salin Array Adegan</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleSaveProjectToDrive}
+                    disabled={isSavingToDrive}
+                    className="flex items-center gap-1.5 bg-[#142038] hover:bg-sky-950/70 text-sky-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-sky-600/40 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                    title="Simpan backup naskah dan adegan langsung ke folder UGC Storyboard Hub di Google Drive"
+                  >
+                    {isSavingToDrive ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Simpan ke Google Drive</span>
                       </>
                     )}
                   </button>
@@ -591,6 +678,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                   <span>{uploadError}</span>
+                </div>
+              )}
+
+              {driveSaveResult && (
+                <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between gap-2 text-xs text-emerald-200 animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Naskah berhasil disimpan ke Google Drive (UGC Storyboard Hub)!</span>
+                  </div>
+                  {driveSaveResult.webViewLink && (
+                    <a
+                      href={driveSaveResult.webViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emerald-300 hover:text-white underline flex items-center gap-1"
+                    >
+                      <span>Buka File</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {driveSaveError && (
+                <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{driveSaveError}</span>
                 </div>
               )}
 

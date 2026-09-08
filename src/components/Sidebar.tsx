@@ -18,7 +18,7 @@ import {
   Clock,
   Layers,
   ChevronRight,
-  FileText
+  Flame
 } from 'lucide-react';
 import { UGC_CATEGORIES } from '../data/categories';
 import { UGCTemplateCategory, StoryboardProject } from '../types';
@@ -31,6 +31,7 @@ interface SidebarProps {
   currentProjectId?: string;
   onSelectProject?: (id: string) => void;
   onCreateNewProject?: () => void;
+  onOpenTrendingHarvest?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentProjectId,
   onSelectProject,
   onCreateNewProject,
+  onOpenTrendingHarvest,
 }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'projects'>('categories');
 
@@ -104,6 +106,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>Naskah Saya ({projects.length})</span>
         </button>
       </div>
+
+      {/* Quick Trending Harvest Shortcut */}
+      {onOpenTrendingHarvest && (
+        <div className="p-2 border-b border-[#1a2336] bg-gradient-to-r from-amber-950/20 via-orange-950/10 to-transparent">
+          <button
+            onClick={onOpenTrendingHarvest}
+            className="w-full flex items-center justify-between p-2 rounded-xl bg-[#131a29] hover:bg-[#1a2336] border border-amber-500/30 hover:border-amber-400/60 transition-all text-left group"
+          >
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300">
+                <Flame className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-200 flex items-center gap-1">
+                  <span>Trending Harvest</span>
+                  <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1 py-0.2 rounded">
+                    SHOPEE
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Opportunity Score & Velocity
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-all" />
+          </button>
+        </div>
+      )}
 
       {/* Tab 1: UGC Video Formats */}
       {activeTab === 'categories' && (

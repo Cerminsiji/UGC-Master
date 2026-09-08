@@ -18,7 +18,8 @@ import {
   Check,
   Flame,
   AlertCircle,
-  Layers
+  Layers,
+  ShoppingBag
 } from 'lucide-react';
 import { Scene, HookVariant } from '../types';
 import {
@@ -27,6 +28,7 @@ import {
   SFX_CATEGORIES,
   VO_TONE_PRESETS,
   MOOD_PRESETS,
+  CTA_PRESETS
 } from '../data/categories';
 
 interface SceneCardProps {
@@ -604,6 +606,49 @@ export const SceneCard: React.FC<SceneCardProps> = ({
             </div>
           )}
         </div>
+
+        {/* HIGH-CONVERSION CTA PRESET (For Closing Scene or Quick Re-targeting) */}
+        {index === totalScenes - 1 && (
+          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/40 via-[#101b2b] to-[#121826] border border-emerald-500/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Closing Scene: Rekomendasi Call to Action (CTA) Konversi Tinggi</span>
+              </div>
+              <span className="text-[10px] bg-emerald-900/60 text-emerald-200 border border-emerald-600/40 px-2 py-0.5 rounded-full font-semibold">
+                High CTR
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Pilih pemicu psikologis CTA untuk otomatis mengisi teks pop-up, naskah ajakan beli di keranjang kuning, dan efek suara:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pt-1">
+              {CTA_PRESETS.map((cta) => (
+                <button
+                  key={cta.label}
+                  type="button"
+                  onClick={() => {
+                    onUpdate({
+                      ...scene,
+                      popupText: cta.popupText,
+                      dialogVO: cta.dialogVO,
+                      soundEffect: cta.soundEffect,
+                      visualAction: 'Talent tersenyum ramah dan mengarahkan jarinya menunjuk ke sudut kiri bawah layar (menunjuk keranjang kuning).',
+                    });
+                  }}
+                  className="p-2 rounded-lg bg-[#0d1424] hover:bg-emerald-950/70 border border-[#1e2c47] hover:border-emerald-500 text-left transition-all group"
+                >
+                  <span className="text-[11px] font-bold text-white group-hover:text-emerald-300 block line-clamp-1">
+                    {cta.label}
+                  </span>
+                  <span className="text-[9.5px] text-slate-400 block line-clamp-1 mt-0.5">
+                    {cta.popupText}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
