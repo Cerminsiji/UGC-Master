@@ -1,112 +1,144 @@
-import { ShopeeTrendingProduct, ShopeeProductMetrics } from '../types';
+import { GoogleGenAI } from '@google/genai';
 
-/**
- * UGC Master Opportunity Score Algorithm
- * Evaluates high-potential products for TikTok Shop & Shopee video creators.
- * 
- * Weights:
- * - Sales Velocity (35%): How fast the product is selling right now (units/day)
- * - Growth Momentum (30%): Sales acceleration & viral surge in 7-30 days
- * - Market Demand & Gap (20%): Search volume vs creator video saturation
- * - Affiliate Commission (15%): Profit potential for creators (commission %)
- */
-export function calculateUGCOpportunityScore(
-  metrics: ShopeeProductMetrics,
-  commissionPercent: number
-): {
-  totalScore: number;
-  tier: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer';
-  velocityScore: number;
-  growthScore: number;
-  demandScore: number;
-  commissionScore: number;
-  isBlueOcean: boolean;
-  blueOceanScore: number;
-  searchVolumeLevel: 'Sangat Tinggi' | 'Tinggi' | 'Sedang';
-  competitorAnalysisReason: string;
-} {
-  // 1. Sales Velocity: Benchmark 450 units/day = 100 pts
-  const velocityScore = Math.min(100, Math.max(10, Math.round((metrics.salesVelocityDay / 450) * 100)));
+export interface ShopeeMetrics {
+  salesVelocityDay: number;
+  totalSold: number;
+  monthlyGrowthPercent: number;
+  marketDemandScore: number;
+  searchVolumeLevel?: 'Sangat Tinggi' | 'Tinggi' | 'Sedang';
+  contentSaturation: 'Sangat Rendah' | 'Rendah' | 'Sedang' | 'Tinggi';
+  creatorVideoCount: number;
+}
 
-  // 2. Growth Momentum: Benchmark 180% monthly growth = 100 pts
-  const growthScore = Math.min(100, Math.max(10, Math.round((metrics.monthlyGrowthPercent / 180) * 100)));
+export interface HarvestProduct {
+  id: string;
+  name: string;
+  category: string;
+  shopeeCategorySlug: string;
+  price: number;
+  originalPrice?: number;
+  discountPercent?: number;
+  affiliateCommissionPercent: number;
+  affiliateCommissionAmount: number;
+  rating: number;
+  reviewCount: number;
+  shopName: string;
+  shopLocation: string;
+  shopBadge: 'Shopee Mall' | 'Star+' | 'Star' | 'Official Store';
+  imageUrl: string;
+  metrics: ShopeeMetrics;
+  ugcOpportunityScore?: number;
+  opportunityTier?: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer';
+  isBlueOcean?: boolean;
+  blueOceanScore?: number;
+  competitorAnalysisReason?: string;
+  recommendedAngle: string;
+  recommendedHook: string;
+  targetAudience: string;
+  keySellingPoints: string;
+  recommendedFraming: 'hands_pov' | 'face_closeup' | 'full_body' | 'mix_framing';
+  recommendedFormatId: string;
+  trendingTags: string[];
+}
 
-  // 3. Market Demand & Saturation Gap:
-  let saturationAdj = 0;
-  if (metrics.contentSaturation === 'Sangat Rendah') saturationAdj = 18;
-  else if (metrics.contentSaturation === 'Rendah') saturationAdj = 10;
-  else if (metrics.contentSaturation === 'Tinggi') saturationAdj = -12;
+export const CATEGORY_IMAGE_MAP: Record<string, string[]> = {
+  skincare: [
+    'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1608248597359-005d5e23631f?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=800&auto=format&fit=crop&q=80',
+  ],
+  gadget: [
+    'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80',
+  ],
+  home: [
+    'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=800&auto=format&fit=crop&q=80',
+  ],
+  fashion: [
+    'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&auto=format&fit=crop&q=80',
+  ],
+  health: [
+    'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800&auto=format&fit=crop&q=80',
+  ],
+  baby: [
+    'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&auto=format&fit=crop&q=80',
+  ],
+};
 
-  const demandScore = Math.min(100, Math.max(15, Math.round(metrics.marketDemandScore + saturationAdj)));
+export function getRandomImageUrl(categorySlug: string): string {
+  const images = CATEGORY_IMAGE_MAP[categorySlug] || CATEGORY_IMAGE_MAP['home'];
+  return images[Math.floor(Math.random() * images.length)];
+}
 
-  // 4. Commission Score: Benchmark 15% commission = 100 pts
-  const commissionScore = Math.min(100, Math.max(10, Math.round((commissionPercent / 15) * 100)));
+export function computeProductScores(p: HarvestProduct): HarvestProduct {
+  const vScore = Math.min(100, Math.max(10, Math.round((p.metrics.salesVelocityDay / 450) * 100)));
+  const gScore = Math.min(100, Math.max(10, Math.round((p.metrics.monthlyGrowthPercent / 180) * 100)));
+  let satAdj = 0;
+  if (p.metrics.contentSaturation === 'Sangat Rendah') satAdj = 18;
+  else if (p.metrics.contentSaturation === 'Rendah') satAdj = 10;
+  else if (p.metrics.contentSaturation === 'Tinggi') satAdj = -12;
+  const dScore = Math.min(100, Math.max(15, Math.round(p.metrics.marketDemandScore + satAdj)));
+  const cScore = Math.min(100, Math.max(10, Math.round((p.affiliateCommissionPercent / 15) * 100)));
 
-  const totalScore = Math.round(
-    velocityScore * 0.35 +
-    growthScore * 0.30 +
-    demandScore * 0.20 +
-    commissionScore * 0.15
-  );
-
-  const clampedTotal = Math.min(99, Math.max(50, totalScore));
+  const totalScore = Math.min(99, Math.max(50, Math.round(
+    vScore * 0.35 + gScore * 0.30 + dScore * 0.20 + cScore * 0.15
+  )));
 
   let tier: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer' = '⚡ Steady Performer';
-  if (clampedTotal >= 88) {
-    tier = '💎 Super Viral';
-  } else if (clampedTotal >= 74) {
-    tier = '🔥 High Potential';
-  }
+  if (totalScore >= 88) tier = '💎 Super Viral';
+  else if (totalScore >= 74) tier = '🔥 High Potential';
 
-  // Determine Blue Ocean status: High Search Demand (>=80) and Low Competition (<=350 videos or Rendah/Sangat Rendah)
-  const isLowComp = metrics.contentSaturation === 'Sangat Rendah' || metrics.contentSaturation === 'Rendah' || metrics.creatorVideoCount <= 400;
-  const isHighSearch = metrics.marketDemandScore >= 80;
+  const isLowComp = p.metrics.contentSaturation === 'Sangat Rendah' || p.metrics.contentSaturation === 'Rendah' || (p.metrics.creatorVideoCount <= 400);
+  const isHighSearch = p.metrics.marketDemandScore >= 80;
   const isBlueOcean = isLowComp && isHighSearch;
 
   const blueOceanScore = Math.min(99, Math.max(40, Math.round(
-    metrics.marketDemandScore * 0.55 + 
-    (Math.max(0, 1000 - metrics.creatorVideoCount) / 1000) * 35 +
-    (metrics.monthlyGrowthPercent / 200) * 10
+    p.metrics.marketDemandScore * 0.55 + 
+    (Math.max(0, 1000 - p.metrics.creatorVideoCount) / 1000) * 35 +
+    ((p.metrics.monthlyGrowthPercent || 150) / 200) * 10
   )));
 
-  const searchVolumeLevel: 'Sangat Tinggi' | 'Tinggi' | 'Sedang' = 
-    metrics.marketDemandScore >= 90 ? 'Sangat Tinggi' :
-    metrics.marketDemandScore >= 80 ? 'Tinggi' : 'Sedang';
+  const searchVolumeLevel = p.metrics.marketDemandScore >= 90 ? 'Sangat Tinggi' : p.metrics.marketDemandScore >= 80 ? 'Tinggi' : 'Sedang';
 
-  let competitorAnalysisReason = '';
-  if (isBlueOcean) {
-    competitorAnalysisReason = `Pencarian kata kunci melonjak (+${metrics.monthlyGrowthPercent}%), namun baru ada ~${metrics.creatorVideoCount} video kreator. Potensi viral sangat terbuka tanpa perang harga/konten.`;
-  } else if (metrics.contentSaturation === 'Tinggi') {
-    competitorAnalysisReason = `Demand sangat besar tapi persaingan kreator padat (>1.000 video). Wajib gunakan hook kontras/kontroversial agar tidak tenggelam.`;
-  } else {
-    competitorAnalysisReason = `Keseimbangan demand stabil dan persaingan kreator dalam batas wajar. Cocok untuk video edukasi dan demonstrasi produk.`;
+  let competitorAnalysisReason = p.competitorAnalysisReason;
+  if (!competitorAnalysisReason) {
+    if (isBlueOcean) {
+      competitorAnalysisReason = `Pencarian kata kunci naik pesat (+${p.metrics.monthlyGrowthPercent}%), namun baru ada ~${p.metrics.creatorVideoCount} video kreator. Sangat berpeluang viral tanpa perang harga!`;
+    } else if (p.metrics.contentSaturation === 'Tinggi') {
+      competitorAnalysisReason = `Demand sangat tinggi tapi kreator padat (>1.000 video). Wajib gunakan angle visual dramatis/kontras.`;
+    } else {
+      competitorAnalysisReason = `Keseimbangan demand stabil dan persaingan kreator wajar. Efektif untuk review storytelling.`;
+    }
   }
 
   return {
-    totalScore: clampedTotal,
-    tier,
-    velocityScore,
-    growthScore,
-    demandScore,
-    commissionScore,
+    ...p,
+    ugcOpportunityScore: totalScore,
+    opportunityTier: tier,
     isBlueOcean,
     blueOceanScore,
-    searchVolumeLevel,
+    metrics: {
+      ...p.metrics,
+      searchVolumeLevel,
+    },
     competitorAnalysisReason,
   };
 }
 
-export const SHOPEE_TRENDING_CATEGORIES = [
-  { id: 'all', name: 'Semua Kategori', icon: '🔥' },
-  { id: 'skincare', name: 'Skincare & Kecantikan', icon: '✨' },
-  { id: 'gadget', name: 'Gadget & Elektronik', icon: '🎧' },
-  { id: 'home', name: 'Home & Living', icon: '🏡' },
-  { id: 'fashion', name: 'Fashion & OOTD', icon: '👕' },
-  { id: 'health', name: 'Diet & Kesehatan', icon: '🌿' },
-  { id: 'baby', name: 'Ibu & Bayi', icon: '🍼' },
-];
-
-export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
+// Master catalogue with authentic Indonesian Shopee items
+export const HARVEST_MASTER_CATALOG: HarvestProduct[] = [
   {
     id: 'shp_blue_1',
     name: 'INBEX Tripod Auto-Tracking AI 360° Face Sensor',
@@ -128,15 +160,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 78500,
       monthlyGrowthPercent: 210,
       marketDemandScore: 94,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Rendah',
       creatorVideoCount: 260,
     },
-    ugcOpportunityScore: 96,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 97,
-    competitorAnalysisReason: 'Pencarian kata kunci "tripod sensor wajah" melonjak +210%, namun video kreator berkualitas masih di bawah 260. Sangat mudah FYP!',
     recommendedAngle: 'Solusi Bikin Konten Sendirian Tanpa Perlu Minta Tolong Kameramen',
     recommendedHook: 'Buat kreator solo yang capek minta tolong orang buat videoin, kalian wajib liat ini!',
     targetAudience: 'Kreator pemula, online shop owner, vlogger OOTD & dance cover',
@@ -166,15 +192,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 118000,
       monthlyGrowthPercent: 245,
       marketDemandScore: 95,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Sangat Rendah',
       creatorVideoCount: 140,
     },
-    ugcOpportunityScore: 98,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 99,
-    competitorAnalysisReason: 'Efek visual busa seketika mengangkat noda kuning/karat sangat dramatis di video, tetapi kreator review masih sangat sedikit (<150 video).',
     recommendedAngle: 'Demonstrasi Cuci Noda Kuning Kerah Baju & Kerak Panci 10 Detik Bersih Total',
     recommendedHook: 'Jangan buang baju putih kamu yang kuning kena noda! Rendam pakai ini 10 menit, noda langsung rontok sendiri!',
     targetAudience: 'Ibu rumah tangga, anak kost, pekerja kantor yang bajunya sering kena noda kopi/keringat',
@@ -204,15 +224,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 42000,
       monthlyGrowthPercent: 185,
       marketDemandScore: 91,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Sangat Rendah',
       creatorVideoCount: 110,
     },
-    ugcOpportunityScore: 94,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 96,
-    competitorAnalysisReason: 'Pencarian oleh pelajar & seller packing barang melesat, kompetitor video TikTok Shop masih sangat minim sehingga potensi FYP sangat tinggi.',
     recommendedAngle: 'Organizing Hack: Labeling Bumbu Dapur, Buku Catatan & Resi Pengiriman Tanpa Tinta',
     recommendedHook: 'Printer secuil ini gak butuh tinta selamanya! Tinggal ketik di HP langsung keluar stiker estetik.',
     targetAudience: 'Pencinta stationery, pelajar/mahasiswa, pemilik olshop kecil, ibu rumah tangga',
@@ -242,15 +256,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 38400,
       monthlyGrowthPercent: 175,
       marketDemandScore: 92,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Rendah',
       creatorVideoCount: 165,
     },
-    ugcOpportunityScore: 94,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 95,
-    competitorAnalysisReason: 'Komisi tinggi (Rp 37.350/penjualan), target working mom loyal dengan buying power tinggi, kompetisi kreator video masih sangat lapang.',
     recommendedAngle: 'Working Mom Hack: Pumping Sambil Ngetik di Kantor Tanpa Ada yang Tahu',
     recommendedHook: 'Penyelamat hidup working mom! Sekarang bisa pumping di kantor tanpa harus sembunyi di toilet.',
     targetAudience: 'Ibu menyusui, working mom, new moms yang butuh pompa ASI praktis tanpa kabel',
@@ -280,15 +288,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 67000,
       monthlyGrowthPercent: 215,
       marketDemandScore: 93,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Rendah',
       creatorVideoCount: 220,
     },
-    ugcOpportunityScore: 95,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 96,
-    competitorAnalysisReason: 'Visual rontok daki dan komedo saat digosok memberikan retensi tontonan >80%. Pasar haus solusi komedo tapi produk ini belum tersaturasi.',
     recommendedAngle: 'Rontokin Sel Kulit Mati & Komedo Hidung Kasar Tanpa Bikin Kulit Mengelupas Sakit',
     recommendedHook: 'Kalau hidung kamu gradakan banyak komedo putih kasar, jangan dipencet! Cukup oles gel ini 30 detik.',
     targetAudience: 'Pria/wanita usia 16-30 yang punya masalah tekstur wajah kasar dan komedo membandel',
@@ -318,15 +320,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 31000,
       monthlyGrowthPercent: 190,
       marketDemandScore: 89,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Sangat Rendah',
       creatorVideoCount: 120,
     },
-    ugcOpportunityScore: 92,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 94,
-    competitorAnalysisReason: 'Permintaan pekerja WFH & kantoran yang sering sakit pinggang sangat besar. Kreator yang mengangkat isu postur masih sangat sedikit.',
     recommendedAngle: 'Ergonomic Workstation Setup: Duduk 8 Jam di Kursi Kerja Tanpa Encok Pinggang',
     recommendedHook: 'Siapa di sini yang kalau duduk kerja seharian pulang-pulang pinggang rasanya mau patah? Ini penyelamatnya!',
     targetAudience: 'Pekerja kantoran, freelancer WFH, gamer, driver mobil jarak jauh',
@@ -356,15 +352,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 94000,
       monthlyGrowthPercent: 165,
       marketDemandScore: 90,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Rendah',
       creatorVideoCount: 290,
     },
-    ugcOpportunityScore: 91,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 92,
-    competitorAnalysisReason: 'Pencarian outfit kerja santai & OOTD nongkrong tinggi. Model highwaist flowy memberikan efek kaki jenjang yang sangat disukai audiens wanita.',
     recommendedAngle: 'Styling Hack: 1 Celana Kulot untuk 3 Gaya (Kantor, Kampus & Hangout Kafe)',
     recommendedHook: 'Akhirnya nemu kulot yang gak bikin paha keliatan lebar dan potongannya bikin kaki keliatan 5cm lebih jenjang!',
     targetAudience: 'Wanita hijab & non-hijab usia 18-35 yang butuh celana kerja nyaman tidak gerah',
@@ -394,15 +384,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 62000,
       monthlyGrowthPercent: 180,
       marketDemandScore: 92,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Rendah',
       creatorVideoCount: 190,
     },
-    ugcOpportunityScore: 93,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: true,
-    blueOceanScore: 95,
-    competitorAnalysisReason: 'Keluhan asam lambung / GERD akibat gaya hidup kopi dan begadang sangat umum di Indonesia. Konversi affiliate kategori kesehatan herbal sangat tinggi.',
     recommendedAngle: 'Solusi Alami Atasi Sesak Dada & Perut Begah Akibat Asam Lambung Naik',
     recommendedHook: 'Tiap pagi perut mual perih atau dada sering panas kayak terbakar? Stop minum obat kimia terus, coba rutin ini 7 hari!',
     targetAudience: 'Pecinta kopi, orang yang sering telat makan, penderita maag / GERD kronis',
@@ -410,6 +394,70 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
     recommendedFraming: 'hands_pov',
     recommendedFormatId: 'review',
     trendingTags: ['#madulambung', '#gerdsembuh', '#obatasamlambung', '#herbalalami'],
+  },
+  {
+    id: 'shp_blue_9',
+    name: 'Electric Foot Callus Grinder Alat Penghalus Tumit Kaki Kapalan',
+    category: 'Skincare & Kecantikan',
+    shopeeCategorySlug: 'skincare',
+    price: 69000,
+    originalPrice: 129000,
+    discountPercent: 46,
+    affiliateCommissionPercent: 15,
+    affiliateCommissionAmount: 10350,
+    rating: 4.8,
+    reviewCount: 26400,
+    shopName: 'SmoothGlow Beauty Tools',
+    shopLocation: 'Jakarta Utara',
+    shopBadge: 'Star+',
+    imageUrl: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=800&auto=format&fit=crop&q=80',
+    metrics: {
+      salesVelocityDay: 380,
+      totalSold: 41000,
+      monthlyGrowthPercent: 210,
+      marketDemandScore: 91,
+      contentSaturation: 'Sangat Rendah',
+      creatorVideoCount: 115,
+    },
+    recommendedAngle: 'Pedicure Spa di Rumah: Tumit Pecah-pecah Kasar Langsung Mulus Bayi dalam 1 Menit',
+    recommendedHook: 'Malu pakai sandal terbuka karena tumit kaki retak-retak kering? Coba liat pas kulit mati ini diserut!',
+    targetAudience: 'Wanita & pria yang sering berdiri lama atau tumit kakinya pecah-pecah',
+    keySellingPoints: '2 kepala roller kuarsa mineral, baterai rechargeable USB, tahan air dan ada vacuum penghisap serbuk kulit mati',
+    recommendedFraming: 'hands_pov',
+    recommendedFormatId: 'before_after',
+    trendingTags: ['#tumitmulus', '#callusremover', '#pedicuredirumah', '#perawatankaki'],
+  },
+  {
+    id: 'shp_blue_10',
+    name: 'Lampu LED Sensor Gerak Smart Motion Sensor Lemari & Tangga Magnetik',
+    category: 'Home & Living',
+    shopeeCategorySlug: 'home',
+    price: 34000,
+    originalPrice: 65000,
+    discountPercent: 47,
+    affiliateCommissionPercent: 16,
+    affiliateCommissionAmount: 5440,
+    rating: 4.9,
+    reviewCount: 88000,
+    shopName: 'Lumina Smart Home',
+    shopLocation: 'Semarang',
+    shopBadge: 'Shopee Mall',
+    imageUrl: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=800&auto=format&fit=crop&q=80',
+    metrics: {
+      salesVelocityDay: 610,
+      totalSold: 140000,
+      monthlyGrowthPercent: 230,
+      marketDemandScore: 94,
+      contentSaturation: 'Rendah',
+      creatorVideoCount: 210,
+    },
+    recommendedAngle: 'Smart Home Murah Tanpa Bobok Tembok: Buka Lemari / Lewat Langsung Nyala',
+    recommendedHook: 'Bikin rumah keliatan kayak hotel bintang 5 cuma modal 30 ribuan tanpa kabel sama sekali!',
+    targetAudience: 'Pemilik rumah, anak kost, orang yang sering terbangun malam hari ke kamar mandi',
+    keySellingPoints: 'Sensor otomatis sudut 120°, tempel magnetik tanpa bor tembok, baterai tahan 30 hari sekali cas',
+    recommendedFraming: 'hands_pov',
+    recommendedFormatId: 'problem_solution',
+    trendingTags: ['#lampusensor', '#smarthomemurah', '#hackanakkost', '#dekorasikamar'],
   },
   {
     id: 'shp_1',
@@ -432,15 +480,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 412000,
       monthlyGrowthPercent: 175,
       marketDemandScore: 96,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Sedang',
       creatorVideoCount: 1420,
     },
-    ugcOpportunityScore: 95,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: false,
-    blueOceanScore: 78,
-    competitorAnalysisReason: 'Permintaan luar biasa tinggi namun persaingan video kreator padat. Gunakan angle sebelum vs sesudah ekstrem.',
     recommendedAngle: 'Skincare Barrier Rescue (Sebelum vs Sesudah Kering Mengelupas)',
     recommendedHook: 'Sumpah stop pakai skincare keras kalau skin barrier kamu lagi rusak merah-merah!',
     targetAudience: 'Wanita/pria usia 18-35 dengan masalah kulit sensitif, kemerahan & bruntusan',
@@ -470,15 +512,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 890000,
       monthlyGrowthPercent: 140,
       marketDemandScore: 92,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Sedang',
       creatorVideoCount: 1850,
     },
-    ugcOpportunityScore: 90,
-    opportunityTier: '💎 Super Viral',
-    isBlueOcean: false,
-    blueOceanScore: 72,
-    competitorAnalysisReason: 'Volume penjualan raksasa harian, brand lokal paling populer di Shopee.',
     recommendedAngle: 'Styling OOTD Sneakers Lokal Kualitas Mewah di Bawah 150 Ribu',
     recommendedHook: 'Sepatu 100 ribuan tapi kelihatan kayak 1 jutaan! Gak percaya? Cek detail jahitannya.',
     targetAudience: 'Remaja, mahasiswa & pekerja muda penggemar casual streetwear',
@@ -508,15 +544,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 290000,
       monthlyGrowthPercent: 125,
       marketDemandScore: 89,
-      searchVolumeLevel: 'Tinggi',
       contentSaturation: 'Sedang',
       creatorVideoCount: 890,
     },
-    ugcOpportunityScore: 87,
-    opportunityTier: '🔥 High Potential',
-    isBlueOcean: false,
-    blueOceanScore: 74,
-    competitorAnalysisReason: 'TWS favorit pelajar dan komuter dengan volume pencarian stabil.',
     recommendedAngle: 'Bass Nendang & Baterai Tahan Seminggu untuk Daily Commute & Gym',
     recommendedHook: 'TWS harga 100 ribuan tapi punya aplikasi equalizer sendiri? Desain transparan estetik abis!',
     targetAudience: 'Pecinta musik, pekerja komuter KRL/MRT, gamer casual & pelari',
@@ -546,15 +576,9 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
       totalSold: 840000,
       monthlyGrowthPercent: 110,
       marketDemandScore: 93,
-      searchVolumeLevel: 'Sangat Tinggi',
       contentSaturation: 'Tinggi',
       creatorVideoCount: 3200,
     },
-    ugcOpportunityScore: 86,
-    opportunityTier: '🔥 High Potential',
-    isBlueOcean: false,
-    blueOceanScore: 65,
-    competitorAnalysisReason: 'Persaingan kreator sangat tinggi (>3.000 video). Wajib pakai storytelling personal atau eksperimen timbangan.',
     recommendedAngle: 'Detox Saluran Cerna Setelah Makan Berlemak / Cheat Day',
     recommendedHook: 'Habis makan all-you-can-eat atau gorengan banyak? Wajib minum ini sebelum tidur biar gak nimbun!',
     targetAudience: 'Pria/wanita yang sering begadang, sembelit, atau makan makanan cepat saji',
@@ -562,5 +586,37 @@ export const INITIAL_SHOPEE_TRENDING_PRODUCTS: ShopeeTrendingProduct[] = [
     recommendedFraming: 'hands_pov',
     recommendedFormatId: 'review',
     trendingTags: ['#flimty', '#minumanserat', '#detoxtubuh', '#dietkenyang'],
-  }
+  },
+  {
+    id: 'shp_10',
+    name: 'Oversized Boxy Heavyweight Hoodie Cotton Fleece 330gsm',
+    category: 'Fashion & OOTD',
+    shopeeCategorySlug: 'fashion',
+    price: 175000,
+    originalPrice: 280000,
+    discountPercent: 37,
+    affiliateCommissionPercent: 12,
+    affiliateCommissionAmount: 21000,
+    rating: 4.9,
+    reviewCount: 62000,
+    shopName: 'RawType Studio Apparel',
+    shopLocation: 'Kota Bandung',
+    shopBadge: 'Star+',
+    imageUrl: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80',
+    metrics: {
+      salesVelocityDay: 320,
+      totalSold: 49000,
+      monthlyGrowthPercent: 165,
+      marketDemandScore: 87,
+      contentSaturation: 'Rendah',
+      creatorVideoCount: 290,
+    },
+    recommendedAngle: 'Koreans Boxy Cut Fit: Hoodie Tebal Siluet Keren yang Bikin Postur Tegap',
+    recommendedHook: 'Pencarian hoodie boxy sempurna berakhir di sini! Cuttingan bahu jatuh bikin badan keliatan tegap.',
+    targetAudience: 'Cowok & cewek pencinta streetwear clean minimalis',
+    keySellingPoints: 'Heavyweight fleece 330gsm tebal jatuh, rib tangan presisi, kapuchon tebal tegak tidak lepek',
+    recommendedFraming: 'full_body',
+    recommendedFormatId: 'haul',
+    trendingTags: ['#hoodieboxy', '#heavyweighthoodie', '#streetwearindo', '#ootdkece'],
+  },
 ];

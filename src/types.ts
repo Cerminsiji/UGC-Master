@@ -132,6 +132,7 @@ export interface ShopeeProductMetrics {
   totalSold: number; // e.g. 28400 terjual
   monthlyGrowthPercent: number; // e.g. 165 (% pertumbuhan)
   marketDemandScore: number; // 0 - 100
+  searchVolumeLevel?: 'Sangat Tinggi' | 'Tinggi' | 'Sedang'; // Intensitas pencarian kata kunci pembeli
   contentSaturation: 'Sangat Rendah' | 'Rendah' | 'Sedang' | 'Tinggi';
   creatorVideoCount: number; // Perkiraan jumlah video ulasan kreator saat ini
 }
@@ -160,6 +161,11 @@ export interface ShopeeTrendingProduct {
   // UGC Master Opportunity Score (0 - 100)
   ugcOpportunityScore: number;
   opportunityTier: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer';
+
+  // Blue Ocean / Low Competitor, High Search Intelligence
+  isBlueOcean?: boolean; // true if high search demand + low competition saturation
+  blueOceanScore?: number; // 0 - 100 indicator
+  competitorAnalysisReason?: string; // e.g. "Pencarian kata kunci naik 210%, namun video kreator berkualitas masih di bawah 250."
 
   // Strategy & UGC Insights
   recommendedAngle: string;
