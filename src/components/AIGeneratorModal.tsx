@@ -95,6 +95,7 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
       if (initialParams.marketingFramework) setMarketingFramework(initialParams.marketingFramework);
       if (initialParams.hookStrategy) setHookStrategy(initialParams.hookStrategy);
       if (initialParams.ctaPreset) setCtaPreset(initialParams.ctaPreset);
+      if (initialParams.productLinkOrNotes) setSmartInput(initialParams.productLinkOrNotes);
     }
   }, [initialParams, isOpen]);
 
@@ -260,6 +261,7 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
           targetDuration: detected.targetDuration || targetDuration,
           targetSceneCount: targetSceneCount > 0 ? targetSceneCount : undefined,
           targetPlatform: detected.targetPlatform || targetPlatform,
+          productLinkOrNotes: trimmedInput || smartInput.trim(),
           language,
           productImage,
         });
@@ -320,6 +322,7 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
       targetDuration,
       targetSceneCount: targetSceneCount > 0 ? targetSceneCount : undefined,
       targetPlatform,
+      productLinkOrNotes: smartInput.trim(),
       language,
       productImage,
     });

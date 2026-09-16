@@ -1,0 +1,126 @@
+{
+  "snapshotVersion": "2026-09-05T06:36:29.989941Z",
+  "appName": "UGC Master - Creator Studio",
+  "description": "Official clean snapshot backup of UGC Master Creator Studio configuration and default project database as of 2026-09-05T06:36:29.989941Z",
+  "exportedAt": "2026-09-11T06:19:02.131Z",
+  "defaultProject": {
+    "id": "proj_before_after_sago",
+    "title": "Storyboard Before & After",
+    "categoryId": "before_after",
+    "productName": "Sago Green Coffee",
+    "targetAudience": "Pria/wanita diet & sehat",
+    "visualFraming": "full_body",
+    "productImageUrl": "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80",
+    "caption": "Cobain Sago Green Coffee! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop",
+    "hookVariants": [
+      {
+        "id": "h_a",
+        "name": "Hook A (Curhat Relatable)",
+        "type": "Relatable Pain Point",
+        "dialogVO": "Diet gagal mulu, kancing kemeja pada lepas, pusing!",
+        "visualAction": "Bapak bertubuh buncit garuk kepala sambil nelpon di depan cermin, kancing baju meregang sempit.",
+        "popupText": "DIET GAGAL MULU, BAJU GAK MUAT?! 😫",
+        "soundEffect": "Phone ring & sigh",
+        "duration": 2
+      },
+      {
+        "id": "h_b",
+        "name": "Hook B (Visual Shock)",
+        "type": "Visual Shock",
+        "dialogVO": "Sumpah kalian harus liat celana lama gue yang dulu gak muat ini!",
+        "visualAction": "Bapak menarik celana jeans lama yang sekarang longgar hingga muat 2 kepalan tangan.",
+        "popupText": "CELANA LAMA LANGSUNG KEDODORAN 😱",
+        "soundEffect": "Vine boom / Bass drop & Gasp",
+        "duration": 2
+      },
+      {
+        "id": "h_c",
+        "name": "Hook C (FOMO / Rahasia)",
+        "type": "FOMO / Secret",
+        "dialogVO": "Jangan skip dulu! Ini rahasia perut buncit kempes tanpa tersiksa diet ekstrem.",
+        "visualAction": "Talent menunjuk ke kamera dengan tatapan serius, memegang sachet kopi hijau.",
+        "popupText": "RAHASIA KEMPES 8 KG TANPA LEMAS 🤫",
+        "soundEffect": "Whisper sound & Mystery chime",
+        "duration": 2
+      }
+    ],
+    "scenes": [
+      {
+        "id": "sc_1",
+        "order": 1,
+        "cameraAngle": "Medium Shot",
+        "visualAction": "Bapak bertubuh buncit garuk kepala sambil nelpon di depan cermin, kancing baju meregang sempit.",
+        "popupText": "DIET GAGAL MULU, BAJU GAK MUAT?! 😫",
+        "soundEffect": "Phone ring & sigh",
+        "dialogVO": "Diet gagal mulu, kancing kemeja pada lepas, pusing!",
+        "notesMood": "Gaya teks: Chat Bubble. Pencahayaan redup dramatis.",
+        "duration": 2
+      },
+      {
+        "id": "sc_2",
+        "order": 2,
+        "cameraAngle": "Close-up Frustrated",
+        "visualAction": "Bapak menatap timbangan digital dengan ekspresi lelah dan putus asa.",
+        "popupText": "COBAIN DIET EKSTREM MALAH LEMAS 😭",
+        "soundEffect": "Record scratch freeze & Dramatic dun dun dun",
+        "dialogVO": "Udah coba nahan makan seharian malah maag kambuh dan badan lemas gak bertenaga.",
+        "notesMood": "Gaya teks: Warning Red tag. Nuansa murung.",
+        "duration": 2
+      },
+      {
+        "id": "sc_3",
+        "order": 3,
+        "cameraAngle": "Close-up B-Roll",
+        "visualAction": "Menunjukkan kemasan Sago Green Coffee sachet praktis di tangan dengan latar cerah.",
+        "popupText": "UNTUNG NEMU SAGO GREEN COFFEE ☕",
+        "soundEffect": "Swoosh & sparkle chime",
+        "dialogVO": "Untung temen kantor ngenalin kopi hijau alami ini yang praktis tinggal seduh.",
+        "notesMood": "Gaya teks: Dynamic Bouncy. Fokus tajam pada produk.",
+        "duration": 2
+      },
+      {
+        "id": "sc_4",
+        "order": 4,
+        "cameraAngle": "POV / Medium Shot",
+        "visualAction": "Menyeduh sachet kopi hijau dengan air panas, aroma mengepul nikmat diaduk dengan sendok.",
+        "popupText": "RASA ENAK & BIKIN KENYANG TAHAN LAMA 😋",
+        "soundEffect": "Pouring water swirl & Stirring cup ting",
+        "dialogVO": "Tiap pagi tinggal seduh, rasanya enak gak pahit, dan nafsu makan auto terkontrol seharian.",
+        "notesMood": "Gaya teks: Warm clean caption. Efek uap estetik.",
+        "duration": 2
+      },
+      {
+        "id": "sc_5",
+        "order": 5,
+        "cameraAngle": "Medium Shot",
+        "visualAction": "Bapak tersenyum percaya diri di depan cermin mengenakan kemeja yang pas rapi dan longgar.",
+        "popupText": "TURUN 8 KG & PERUT LEBIH RATA! 🎉",
+        "soundEffect": "Pop cheer & Upbeat music drop",
+        "dialogVO": "Setelah 3 minggu rutin, perut buncit kempes, baju kerja muat lagi dan badan enteng banget!",
+        "notesMood": "Gaya teks: Confetti celebration. Pencahayaan terang natural.",
+        "duration": 3
+      },
+      {
+        "id": "sc_6",
+        "order": 6,
+        "cameraAngle": "Close-up with Gesture",
+        "visualAction": "Menunjukkan kotak Sago Green Coffee di depan dada sambil menunjuk keranjang kuning di pojok kiri bawah.",
+        "popupText": "CHECKOUT SEKARANG ADA PROMO BUNDLING! 🛒",
+        "soundEffect": "Cha-ching & Bell ring",
+        "dialogVO": "Jangan nunggu baju pada gak muat! Mumpung promo, klik keranjang kuning sekarang juga!",
+        "notesMood": "Gaya teks: Pulsing Arrow Yellow. Call to Action kuat.",
+        "duration": 2
+      }
+    ]
+  },
+  "supportedFormats": [
+    "affiliate",
+    "unboxing",
+    "review_testimoni",
+    "tutorial_howto",
+    "before_after",
+    "problem_solution",
+    "day_in_my_life",
+    "asmr_no_talk"
+  ]
+}

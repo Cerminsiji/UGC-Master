@@ -9,6 +9,10 @@ export interface Scene {
   notesMood: string;
   duration: number; // in seconds
   imageUrl?: string; // Optional image reference/product photo for this scene
+  // Google Flow AI & Video Generation Engine parameters
+  flowSecretCode?: string; // e.g. "/orbit360", "/dollyin", "/macro_texture", "/tracking_follow"
+  cameraMovement?: string; // e.g. "Smooth 360° orbital rotation around subject"
+  flowPrompt?: string; // Full structured hidden prompt optimized for Google Flow / Veo / AI Video
 }
 
 export interface UGCTemplateCategory {
@@ -50,6 +54,7 @@ export interface StoryboardProject {
   targetAudience?: string;
   caption?: string; // Auto caption & hashtags (max 150 chars)
   productImageUrl?: string; // Uploaded product photo reference
+  productLinkOrNotes?: string; // Stored product link & notes from AI Generate input
   cameraStyle?: string; // Selected Camera Style & Cinematography direction
   visualFraming?: string; // 'hands_pov' | 'face_closeup' | 'full_body' | 'mix_framing'
   marketingFramework?: string; // Marketing conversion framework (AIDA, PAS, BAB, Unboxing, FOMO)
@@ -70,6 +75,7 @@ export interface AIGenerateParams {
   productDescription?: string;
   targetAudience?: string;
   keySellingPoints?: string;
+  productLinkOrNotes?: string; // Stored product link or description
   tone: string;
   cameraStyle?: string; // e.g. "Kombinasi Dinamis (Rekomendasi AI Otomatis)", "Handheld Vlog & Casual Selfie", etc.
   visualFraming?: VisualFramingType | string; // 'hands_pov' | 'face_closeup' | 'full_body' | 'mix_framing'
@@ -127,55 +133,5 @@ export interface RateCardConfig {
   notes?: string;
 }
 
-export interface ShopeeProductMetrics {
-  salesVelocityDay: number; // e.g. 420 terjual / hari
-  totalSold: number; // e.g. 28400 terjual
-  monthlyGrowthPercent: number; // e.g. 165 (% pertumbuhan)
-  marketDemandScore: number; // 0 - 100
-  searchVolumeLevel?: 'Sangat Tinggi' | 'Tinggi' | 'Sedang'; // Intensitas pencarian kata kunci pembeli
-  contentSaturation: 'Sangat Rendah' | 'Rendah' | 'Sedang' | 'Tinggi';
-  creatorVideoCount: number; // Perkiraan jumlah video ulasan kreator saat ini
-}
-
-export interface ShopeeTrendingProduct {
-  id: string;
-  name: string;
-  category: string; // 'Skincare & Kecantikan' | 'Fashion & Outfit' | 'Gadget & Elektronik' | 'Home & Living' | 'Diet & Kesehatan' | 'Mom & Baby'
-  shopeeCategorySlug?: string;
-  price: number; // Rupiah
-  originalPrice?: number;
-  discountPercent?: number;
-  affiliateCommissionPercent: number; // e.g. 12%
-  affiliateCommissionAmount: number; // e.g. 10680
-  rating: number; // e.g. 4.9
-  reviewCount: number;
-  shopName: string;
-  shopLocation: string;
-  shopBadge: 'Shopee Mall' | 'Star+' | 'Star' | 'Official Store';
-  imageUrl: string;
-  shopeeUrl?: string;
-
-  // Real-time performance metrics
-  metrics: ShopeeProductMetrics;
-
-  // UGC Master Opportunity Score (0 - 100)
-  ugcOpportunityScore: number;
-  opportunityTier: '💎 Super Viral' | '🔥 High Potential' | '⚡ Steady Performer';
-
-  // Blue Ocean / Low Competitor, High Search Intelligence
-  isBlueOcean?: boolean; // true if high search demand + low competition saturation
-  blueOceanScore?: number; // 0 - 100 indicator
-  competitorAnalysisReason?: string; // e.g. "Pencarian kata kunci naik 210%, namun video kreator berkualitas masih di bawah 250."
-
-  // Strategy & UGC Insights
-  recommendedAngle: string;
-  recommendedHook: string;
-  targetAudience: string;
-  keySellingPoints: string;
-  recommendedFraming: VisualFramingType;
-  recommendedFormatId: string;
-  trendingTags: string[];
-}
-
-export type StoryboardViewMode = 'cards' | 'table' | 'phone_preview' | 'shot_list' | 'rate_card' | 'trending_harvest';
+export type StoryboardViewMode = 'cards' | 'table' | 'phone_preview' | 'shot_list' | 'rate_card';
 

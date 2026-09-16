@@ -154,27 +154,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Creator Workflow Switcher (6 Dedicated Tools) */}
+        {/* Center: Creator Workflow Switcher (5 Dedicated Tools) */}
         <div className="flex items-center self-start xl:self-center bg-[#101625] border border-[#1e293f] p-1 rounded-xl shadow-inner overflow-x-auto max-w-full custom-scrollbar">
-          <button
-            onClick={() => onViewModeChange('trending_harvest')}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-              viewMode === 'trending_harvest'
-                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-slate-950 font-black shadow-md shadow-amber-900/40'
-                : 'text-amber-400 hover:text-amber-300 hover:bg-[#161d30]'
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5" />
-            <span>Trending Harvest</span>
-            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-              viewMode === 'trending_harvest'
-                ? 'bg-slate-950/25 text-slate-950'
-                : 'bg-amber-400/20 text-amber-300'
-            }`}>
-              Shopee
-            </span>
-          </button>
-
           <button
             onClick={() => onViewModeChange('cards')}
             className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${

@@ -1,26 +1,37 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { HARVEST_MASTER_CATALOG, computeProductScores, getRandomImageUrl } from './server/shopeeTrendsService';
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// List of supported Gemini models with automatic cascading fallback (fastest & most stable first)
+// List of supported Gemini models with automatic cascading fallback (fastest, high-quota & stable)
 const CANDIDATE_MODELS = [
-  'gemini-3.6-flash',
   'gemini-3.1-flash-lite',
   'gemini-flash-latest',
   'gemini-3.8-flash',
-  'gemini-3.1-pro-preview',
 ];
+
+// In-memory cache & Rate-Limit Circuit Breaker
+let rateLimitCooldownUntil = 0;
+const promptResponseCache = new Map<string, { text: string; timestamp: number }>();
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 mins cache
+
+export function isRateLimited(): boolean {
+  return Date.now() < rateLimitCooldownUntil;
+}
+
+export function triggerRateLimitCooldown(ms = 8000) {
+  rateLimitCooldownUntil = Date.now() + ms;
+  console.log(`[Rate Limit Guard] Cooldown active for ${Math.round(ms / 1000)}s`);
+}
 
 // Lazy-safe Gemini AI client helper
 function getGeminiClient(): GoogleGenAI | null {
@@ -46,13 +57,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage = 'Request
   ]);
 }
 
-// High-speed multi-model generator with clean config & strict timeouts
+// High-speed multi-model generator with clean config & strict timeouts (default 7.5s per candidate)
 async function generateWithFallback(
   prompt: string,
   config: any,
   systemInstruction?: string,
-  timeoutMs = 25000
+  timeoutMs = 7500
 ): Promise<string | null> {
+  // Check cache first to save quota
+  const cacheKey = `${prompt}__${JSON.stringify(config || {})}__${systemInstruction || ''}`;
+  const cached = promptResponseCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.text;
+  }
+
+  // If in rate limit cooldown, smoothly yield for smart fallback
+  if (isRateLimited()) {
+    console.log('[Gemini AI] Rate limit cooldown active. Yielding for smart local engine.');
+    return null;
+  }
+
   const ai = getGeminiClient();
   if (!ai) return null;
 
@@ -60,6 +84,8 @@ async function generateWithFallback(
     ...config,
     ...(systemInstruction ? { systemInstruction } : {}),
   };
+
+  let allCandidatesQuotaExhausted = true;
 
   for (const model of CANDIDATE_MODELS) {
     try {
@@ -75,47 +101,81 @@ async function generateWithFallback(
 
       const text = response.text?.trim();
       if (text) {
+        allCandidatesQuotaExhausted = false;
+        promptResponseCache.set(cacheKey, { text, timestamp: Date.now() });
         return text;
       }
     } catch (err: any) {
+      const errMsg = err?.message || String(err);
       const isQuota =
         err?.status === 429 ||
-        err?.message?.includes('429') ||
-        err?.message?.includes('Quota exceeded') ||
-        err?.message?.includes('RESOURCE_EXHAUSTED');
+        errMsg.includes('429') ||
+        errMsg.includes('Quota exceeded') ||
+        errMsg.includes('RESOURCE_EXHAUSTED') ||
+        errMsg.includes('rate limit') ||
+        errMsg.includes('Rate limit') ||
+        errMsg.includes('Rate exceeded');
+
       const isUnavailable =
         err?.status === 503 ||
-        err?.message?.includes('503') ||
-        err?.message?.includes('UNAVAILABLE') ||
-        err?.message?.includes('high demand');
+        errMsg.includes('503') ||
+        errMsg.includes('UNAVAILABLE') ||
+        errMsg.includes('high demand');
+
+      if (!isQuota) {
+        allCandidatesQuotaExhausted = false;
+      }
 
       if (isQuota) {
-        console.log(`[Gemini AI] Quota limit reached for ${model}, switching to next candidate.`);
+        console.log(`[Gemini AI] Quota/Rate limit on ${model}. Switching to next candidate...`);
       } else if (isUnavailable) {
-        console.log(`[Gemini AI] Model ${model} temporarily unavailable, switching to next candidate.`);
+        console.log(`[Gemini AI] Model ${model} temporarily busy, switching candidate...`);
       } else {
-        console.log(`[Gemini AI] Model ${model} fallback: ${err?.message || err}`);
+        console.log(`[Gemini AI] Model ${model} notice: ${errMsg.slice(0, 80)}`);
       }
     }
+  }
+
+  if (allCandidatesQuotaExhausted) {
+    triggerRateLimitCooldown(10000);
   }
 
   return null;
 }
 
-// Clean JSON response helper
+// Clean JSON response helper with robust substring extractor
 function parseSafeJson<T>(rawText: string | null): T | null {
   if (!rawText) return null;
   try {
-    // Strip possible markdown fences
     let clean = rawText.trim();
     if (clean.startsWith('```json')) {
       clean = clean.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
     } else if (clean.startsWith('```')) {
       clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
-    return JSON.parse(clean) as T;
+    clean = clean.trim();
+
+    try {
+      return JSON.parse(clean) as T;
+    } catch {
+      // Extract from first { to last } or first [ to last ]
+      const firstBrace = clean.indexOf('{');
+      const lastBrace = clean.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonSub = clean.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(jsonSub) as T;
+      }
+
+      const firstBracket = clean.indexOf('[');
+      const lastBracket = clean.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        const jsonSub = clean.substring(firstBracket, lastBracket + 1);
+        return JSON.parse(jsonSub) as T;
+      }
+    }
+    return null;
   } catch (err) {
-    console.error('Failed to parse JSON text from Gemini:', err, rawText);
+    console.warn('Failed to parse JSON text from Gemini:', rawText?.slice(0, 100));
     return null;
   }
 }
@@ -172,10 +232,13 @@ function generateRichFallback(
   if (isFaceCloseup) defaultAngle1 = 'Eye-Level Close-Up Wajah (Realistis)';
   if (isFullBody) defaultAngle1 = 'Full-Body Vertical (9:16 Kamera Berdiri)';
 
-  // Rich 9-step template library with Anti-AI Realism and Consistent Product Packaging
+  // Rich 9-step template library with Anti-AI Realism, Consistent Product Packaging, and Google Flow Secret Codes
   const full9Scenes = [
     {
       cameraAngle: defaultAngle1,
+      flowSecretCode: '/dollyin',
+      cameraMovement: 'Cinematic push-in camera move stopping at subject eye-level',
+      flowPrompt: `/dollyin [Shot: Dynamic push-in] [Subject: ${safeName}] [Action: Talent stops scrolling showing product] [Lighting: Softbox studio lighting, clean vertical frame] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV orang pertama (tanpa wajah): Kedua tangan kreator memegang kemasan ${safeName} di atas meja bersih dengan pencahayaan alami, menghentikan scroll secara tegas.`
         : isFaceCloseup
@@ -190,6 +253,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Hands Close-Up' : isFaceCloseup ? 'Extreme Close-Up Ekspresi' : isFullBody ? 'Full Body Turn / Side Shot' : 'Extreme Close-up',
+      flowSecretCode: '/vertigo_zoom',
+      cameraMovement: 'Dramatic vertigo dolly zoom warping background perspective',
+      flowPrompt: `/vertigo [Shot: Vertigo dolly zoom] [Subject: Pain point reaction] [Action: Frustrated genuine expression] [Lighting: Moody soft contrast] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan memperlihatkan kondisi kendala/masalah sebelum memakai produk, tekstur permukaan terlihat sangat nyata dan organik tanpa keanehan AI.`
         : isFaceCloseup
@@ -204,6 +270,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Top-Down Hands Unboxing' : isFaceCloseup ? 'Medium Close-up Wajah & Produk' : 'Medium Shot',
+      flowSecretCode: '/orbit360',
+      cameraMovement: 'Smooth 360° orbital rotation around subject',
+      flowPrompt: `/orbit360 [Shot: Smooth 360 orbit] [Subject: ${safeName} packaging] [Action: Talent smiles holding product] [Lighting: Crisp commercial light, warm fill] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan membuka segel dan kemasan ${safeName}, bentuk dus, warna botol, dan logo terlihat tajam dan konsisten untuk referensi visual Google Flow.`
         : isFaceCloseup
@@ -218,6 +287,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: 'Close-up Macro (Konsistensi Kemasan)',
+      flowSecretCode: '/macro_texture',
+      cameraMovement: 'Macro lens tight focus exploring packaging details and texture',
+      flowPrompt: `/macro [Shot: Extreme macro texture] [Subject: ${safeName} label & finish] [Action: Detailed texture exploration] [Lighting: Sharp rim edge highlights] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: `Sorotan makro tajam fokus pada detail kemasan ${safeName}, label merek, tutup botol/jar, dan tekstur fisik produk asli (organik smartphone capture).`,
       popupText: 'KUALITAS BINTANG 5 ⭐⭐⭐⭐⭐',
       soundEffect: 'Camera shutter & Pop',
@@ -226,6 +298,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Hands Macro Texture Test' : 'POV / Macro Angle',
+      flowSecretCode: '/slowmo_120fps',
+      cameraMovement: 'High-speed camera tracking slow-motion fluid swatch dynamics',
+      flowPrompt: `/slowmo [Shot: 120fps slow motion] [Subject: Application test of ${safeName}] [Action: Swatch and texture test] [Lighting: Bright clean studio aesthetic] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV kedua tangan menguji tekstur produk secara nyata (swatch di punggung tangan / tuang isi krim), tekstur formulasi tampak nyata tanpa efek kartun.`
         : isFaceCloseup
@@ -240,6 +315,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isFullBody ? 'Full Body Dynamic Action' : 'Side Angle 45°',
+      flowSecretCode: '/speed_ramp',
+      cameraMovement: 'Speed ramp accelerating on approach then snapping into clarity',
+      flowPrompt: `/speed_ramp [Shot: Dynamic speed ramp] [Subject: Transformation with ${safeName}] [Action: Quick turn showing results] [Lighting: Natural daylight] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan menunjukkan hasil aplikasi langsung pada produk, tekstur menyerap sempurna di permukaan kulit tangan.`
         : isFaceCloseup
@@ -254,6 +332,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Hands Side-by-Side' : isFaceCloseup ? 'Close-up Face (Puas & Terkesima)' : 'Close-up Face',
+      flowSecretCode: '/before_after_wipe',
+      cameraMovement: 'Locked static frame with seamless vertical wipe transition',
+      flowPrompt: `/split_screen [Shot: Seamless vertical wipe] [Subject: Before vs After transformation] [Action: Instant side-by-side comparison] [Lighting: High-key radiant glow] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan menyejajarkan area sebelum vs sesudah dalam satu frame vertikal, perbedaan terlihat mencolok dan jelas.`
         : isFaceCloseup
@@ -268,6 +349,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Hands Holding Product' : 'Medium Shot',
+      flowSecretCode: '/tracking_follow',
+      cameraMovement: 'Lateral tracking shot locked onto subject movement',
+      flowPrompt: `/tracking [Shot: Fluid tracking follow] [Subject: ${safeName} in hand] [Action: Thumbs up recommendation] [Lighting: Studio softbox balance] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan menggenggam produk ${safeName} dengan kemasan tetap utuh dan konsisten, memberikan gestur jempol di samping produk.`
         : isFaceCloseup
@@ -282,6 +366,9 @@ function generateRichFallback(
     },
     {
       cameraAngle: isHandsOnly ? 'POV Hands Pointing Yellow Cart' : isFullBody ? 'Full Body / Medium Wide CTA' : 'Medium Wide Shot',
+      flowSecretCode: '/dollyout',
+      cameraMovement: 'Smooth pull-back camera motion to full frame CTA',
+      flowPrompt: `/dollyout [Shot: Smooth dolly out] [Subject: Call to action pointing yellow cart] [Action: Talent points to bottom-left corner] [Lighting: Vibrant commercial studio] [Style: 4K UHD, 9:16, 60fps cinematic flow]`,
       visualAction: isHandsOnly
         ? `POV tangan memegang produk ${safeName} dengan tangan kiri, sementara jari telunjuk tangan kanan menunjuk tegas ke sudut kiri bawah layar (menunjuk Keranjang Kuning TikTok).`
         : `Kreator tersenyum antusias menunjuk tegas ke pojok kiri bawah layar (Keranjang Kuning / tombol beli) sambil memperlihatkan kemasan ${safeName}.`,
@@ -462,7 +549,13 @@ ATURAN KRUSIAL: KONSISTENSI PRODUK & ANTI-AI REALISM MANDATE
 8. Naskah Voiceover (VO): Naskah harus BERVARIASI SECARA EMOSIONAL dan intonasi alami: dari penasaran, heboh, curhat, hingga meyakinkan saat closing CTA. Sesuaikan panjang kata dengan durasi adegan agar tidak terburu-buru.
 9. Pop-up Text: Huruf kapital mencolok & singkat (maksimal 6-8 kata) yang langsung menyampaikan pesan utama adegan.
 10. Durasi setiap adegan (dalam integer detik) jika dijumlahkan WAJIB bernilai total mendekati ${targetDuration} detik.
-11. AUTO CAPTION DENGAN HASHTAG: Tulis 1 caption postingan media sosial yang menjual, LENGKAP dengan 2-4 hashtag trending. TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG HARUS MAKSIMAL 150 KARAKTER!`;
+11. AUTO CAPTION DENGAN HASHTAG: Tulis 1 caption postingan media sosial yang menjual, LENGKAP dengan 2-4 hashtag trending. TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG HARUS MAKSIMAL 150 KARAKTER!
+12. MANDAT GOOGLE FLOW AI SECRET CODES & CINEMATIC PROMPTS:
+    - Di setiap adegan, Anda WAJIB menyertakan:
+      * 'flowSecretCode': Kode rahasia Google Flow AI (pilih salah satu yang paling presisi: /orbit360, /dollyin, /dollyout, /macro_texture, /fpv_glide, /tracking_follow, /vertigo_zoom, /slowmo_120fps, /speed_ramp, /studio_softbox, /golden_hour, /cyberpunk_neon, /rim_light_luxury, /before_after_wipe, /product_levitation, /liquid_explosion, /pov_unboxing).
+      * 'cameraMovement': Arahan eksplisit pergerakan kamera sinematik (contoh: "Smooth 360° orbital rotation around subject", "Slow cinematic push-in toward product detail").
+      * 'flowPrompt': Hidden prompt sinematik padat siap pakai untuk Google Flow / Veo / Kling / Sora berformat:
+        "{flowSecretCode} [Shot: {cameraMovement}] [Subject: {productOrTalent}] [Action: {visualAction}] [Lighting: {lightingMood}] [Style: 4K UHD hyperrealistic commercial, 9:16 vertical, 60fps cinematic flow]"`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -493,6 +586,18 @@ ATURAN KRUSIAL: KONSISTENSI PRODUK & ANTI-AI REALISM MANDATE
                 cameraAngle: {
                   type: Type.STRING,
                   description: 'Sudut kamera (e.g., Medium Shot, Close-up, POV / Handheld, Wide Shot, Extreme Close-up)',
+                },
+                flowSecretCode: {
+                  type: Type.STRING,
+                  description: 'Google Flow secret code e.g. /orbit360, /dollyin, /macro_texture, /tracking_follow, /slowmo_120fps',
+                },
+                cameraMovement: {
+                  type: Type.STRING,
+                  description: 'Explicit cinematic camera movement direction',
+                },
+                flowPrompt: {
+                  type: Type.STRING,
+                  description: 'Full hidden cinematic prompt formatted for Google Flow / AI Video generators',
                 },
                 visualAction: {
                   type: Type.STRING,
@@ -550,6 +655,19 @@ ATURAN KRUSIAL: KONSISTENSI PRODUK & ANTI-AI REALISM MANDATE
         parsedData.caption = parsedData.caption.slice(0, 147) + '...';
       }
 
+      // Guarantee Google Flow parameters on each scene
+      parsedData.scenes = parsedData.scenes.map((sc: any, idx: number) => {
+        const code = sc.flowSecretCode || (idx === 0 ? '/dollyin' : idx === parsedData.scenes.length - 1 ? '/dollyout' : '/orbit360');
+        const movement = sc.cameraMovement || sc.cameraAngle || 'Smooth cinematic camera movement';
+        const flowPrompt = sc.flowPrompt || `${code} [Shot: ${movement}] [Subject: ${productName}] [Action: ${sc.visualAction || 'Product showcase'}] [Lighting: Studio softbox, natural daylight] [Style: 4K UHD, 9:16 vertical video, 60fps cinematic flow]`;
+        return {
+          ...sc,
+          flowSecretCode: code,
+          cameraMovement: movement,
+          flowPrompt,
+        };
+      });
+
       return res.json({
         success: true,
         data: parsedData,
@@ -575,30 +693,60 @@ ATURAN KRUSIAL: KONSISTENSI PRODUK & ANTI-AI REALISM MANDATE
       source: 'smart-template',
     });
   } catch (error: any) {
-    console.error('Server error in /api/generate-storyboard:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    console.error('Server error in /api/generate-storyboard (gracefully falling back):', error);
+    const fallbackData = generateRichFallback(
+      req.body?.category || 'Review',
+      req.body?.productName || 'Produk Pilihan',
+      req.body?.targetDuration || 30,
+      req.body?.targetAudience || 'Target audiens',
+      req.body?.keySellingPoints || '',
+      req.body?.targetSceneCount || 5,
+      req.body?.cameraStyle,
+      req.body?.visualFraming
+    );
+    return res.json({
+      success: true,
+      data: fallbackData,
+      source: 'smart-template',
+    });
   }
 });
 
-// Dedicated endpoint to generate / regenerate viral captions <= 150 characters
+// Top Creator & FYP Research-backed Caption Generator
 app.post('/api/generate-caption', async (req, res) => {
   try {
     const {
-      productName = 'Produk Viral',
+      productName = 'Produk Pilihan',
       category = 'UGC',
       keySellingPoints = '',
       targetAudience = '',
       platform = 'TikTok Shop',
+      productLinkOrNotes = '',
+      hookStrategy = 'curiosity_gap',
+      scenesSummary = '',
     } = req.body;
 
-    const prompt = `Buatkan 1 caption postingan media sosial (${platform}) yang super menjual, catchy, ada call-to-action ke keranjang kuning/bio, dan 2-4 hashtag trending untuk:
-Produk: ${productName}
-Kategori: ${category}
-USP: ${keySellingPoints}
-Target Audiens: ${targetAudience}
+    const prompt = `Kamu adalah TikTok & Instagram Reels Viral Strategist dan Top Content Creator Copywriter.
+Lakukan riset angle viral dan search-intent (TikTok SEO) agar postingan video produk berikut berpeluang maksimal tembus FYP (For You Page) dan mendongkrak penjualan keranjang kuning:
 
-ATURAN PALING KRUSIAL:
-TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KARAKTER (Character Count <= 150).`;
+DATA RISET PRODUK:
+- Nama Produk: ${productName}
+- Kategori: ${category}
+- USP / Nilai Jual: ${keySellingPoints || 'Hasil nyata, praktis & terpercaya'}
+- Target Audiens: ${targetAudience || 'Pengguna aktif media sosial Indonesia'}
+- Keterangan/Link Produk: ${productLinkOrNotes || '-'}
+- Ringkasan Cerita Video: ${scenesSummary || '-'}
+- Platform Utama: ${platform}
+
+FORMULA COPYWRITING TOP CREATOR FYP:
+1. Hook 3 Detik: Pancing rasa penasaran, emosi terkejut, atau problem relate (contoh: "Jujur nyesel baru tahu...", "Pernah ngalamin ini gak?", "Gak heran sold out mulu...").
+2. Search-Intent (TikTok SEO): Sisipkan kata kunci alami yang sering diketik audiens di kolom pencarian TikTok.
+3. Call To Action (CTA): Ajakan checkout keranjang kuning atau amankan promo sebelum kehabisan.
+4. FYP Algorithm Hashtags: 3-5 hashtag tertarget (gabungan #fyp, #RacunTikTok / #TikTokShop, dan 2 hashtag niche spesifik produk).
+
+ATURAN PANJANG KARAKTER:
+- "caption": Teks caption utama postingan MAKSIMAL 150 KARAKTER (Character Count <= 150) termasuk hashtag, sangat padat & memicu klik.
+- "longCaption": Deskripsi lengkap SEO (150-280 karakter) untuk pembuat konten yang ingin deskripsi lebih kaya.`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -607,16 +755,29 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
         properties: {
           caption: {
             type: Type.STRING,
-            description: 'Caption lengkap dengan hashtag (MAKSIMAL 150 KARAKTER)',
+            description: 'Caption viral ringkas maksimal 150 karakter termasuk hashtag',
           },
-          characterCount: {
-            type: Type.INTEGER,
-            description: 'Jumlah karakter dalam caption',
+          longCaption: {
+            type: Type.STRING,
+            description: 'Caption lengkap dengan TikTok SEO deskripsi (150-280 karakter)',
+          },
+          hookTitle: {
+            type: Type.STRING,
+            description: 'Tipe hook yang diriset (misal: Curiosity Gap, Visual Shock, Relatable Pain)',
+          },
+          seoKeywords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: '3-4 kata kunci pencarian TikTok hasil riset',
           },
           hashtags: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: 'Daftar hashtag yang disertakan',
+            description: 'Daftar 3-5 hashtag algoritma FYP hasil riset',
+          },
+          creatorTip: {
+            type: Type.STRING,
+            description: '1 tips singkat eksekusi dari Top Creator',
           },
         },
         required: ['caption'],
@@ -626,42 +787,74 @@ TOTAL PANJANG KARAKTER CAPTION TERMASUK HASHTAG DAN SPASI HARUS MAKSIMAL 150 KAR
     const raw = await generateWithFallback(
       prompt,
       config,
-      'You are an expert social media copywriter. Keep caption length strictly under 150 characters.'
+      'You are a Top TikTok Creator & Reels Copywriter. Return strictly JSON with research-backed viral copy. Keep caption strictly <= 150 chars.',
+      7000
     );
 
     const parsed = parseSafeJson<any>(raw);
-    let finalCaption = parsed?.caption || formatShortCaption(productName, category, keySellingPoints);
+    let finalCaption = parsed?.caption;
+
+    if (!finalCaption || typeof finalCaption !== 'string') {
+      finalCaption = formatShortCaption(productName, category, keySellingPoints);
+    }
+
     if (finalCaption.length > 150) {
       finalCaption = finalCaption.slice(0, 147) + '...';
     }
+
+    // Default hashtags if not parsed
+    const cleanProdTag = productName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+    const defaultHashtags = [
+      '#fyp',
+      '#RacunTikTok',
+      '#TikTokShop',
+      cleanProdTag ? `#${cleanProdTag}` : '#ReviewJujur',
+    ];
 
     return res.json({
       success: true,
       caption: finalCaption,
       characterCount: finalCaption.length,
-      hashtags: parsed?.hashtags || ['#RacunTikTok', '#fyp', '#TikTokShop'],
+      longCaption: parsed?.longCaption || `${finalCaption} Cek keranjang kuning sekarang mumpung voucher diskon masih aktif ya! ✨`,
+      hookTitle: parsed?.hookTitle || 'Curiosity & Relatable Hook',
+      seoKeywords: parsed?.seoKeywords || [productName.toLowerCase(), `rekomendasi ${category.toLowerCase()}`, 'review jujur', 'promo diskon'],
+      hashtags: parsed?.hashtags && parsed.hashtags.length > 0 ? parsed.hashtags : defaultHashtags,
+      creatorTip: parsed?.creatorTip || 'Pasang teks pop-up hook di 2 detik pertama dan tunjukkan kemasan produk dengan jelas!',
+      source: parsed?.caption ? 'gemini' : 'smart-research',
     });
   } catch (error: any) {
-    const fallbackCaption = formatShortCaption(req.body?.productName || 'Produk');
+    console.error('Error generating caption:', error);
+    const cleanName = (req.body?.productName || 'Produk').replace(/\s+/g, ' ').trim().slice(0, 24);
+    const fallbackCaption = `Jujur nyesel baru tahu ${cleanName}! Hasilnya nyata. Cek keranjang kuning mumpung promo! 🔥 #fyp #RacunTikTok #TikTokShop`;
     return res.json({
       success: true,
-      caption: fallbackCaption,
+      caption: fallbackCaption.length <= 150 ? fallbackCaption : fallbackCaption.slice(0, 147) + '...',
       characterCount: fallbackCaption.length,
-      hashtags: ['#RacunTikTok', '#fyp', '#TikTokShop'],
+      longCaption: `Stop scrolling! Ini rahasia ${cleanName} yang lagi viral di TikTok. Kualitas terbukti bagus dan praktis. Checkout sekarang sebelum kehabisan voucher diskon di keranjang kuning! 🛒✨ #fyp #RacunTikTok #TikTokShop #Review`,
+      hookTitle: 'Curiosity & Pain Point Hook',
+      seoKeywords: [cleanName.toLowerCase(), 'racun tiktok', 'review jujur tiktok shop'],
+      hashtags: ['#fyp', '#RacunTikTok', '#TikTokShop', '#ViralDiTikTok'],
+      creatorTip: 'Pastikan pencahayaan terang dan ekspresi wajah meyakinkan saat menyebutkan promo di keranjang kuning.',
+      source: 'smart-research',
     });
   }
 });
 
-// AI Single Scene Polish / Rewrite
+// AI Single Scene Polish / Rewrite - Super Robust with High-Impact Creative Engine
 app.post('/api/enhance-scene', async (req, res) => {
-  try {
-    const { scene, instruction = 'make it more viral and catchy', category = 'UGC' } = req.body;
+  const scene = req.body?.scene || {};
+  const category = req.body?.category || 'UGC';
+  const instruction = req.body?.instruction || 'Tingkatkan agar lebih viral, hook lebih tajam, dan aksi visual lebih ekspresif';
+  const productName = req.body?.productName || 'Produk';
 
-    const prompt = `Kamu adalah UGC director. Tingkatkan adegan storyboard video berikut agar lebih viral, natural, dan memicu konversi tinggi.
+  try {
+    const prompt = `Kamu adalah Top UGC Director & Cinematographer.
+Perbaiki dan percantik adegan storyboard video berikut agar lebih viral, natural (bebas kesan robot AI/CGI), dan menghasilkan konversi tinggi:
 Instruksi perbaikan: "${instruction}"
 Kategori video: "${category}"
+Nama Produk: "${productName}"
 
-Adegan saat ini:
+DATA ADEGAN SAAT INI:
 - Sudut kamera: ${scene.cameraAngle || 'Medium Shot'}
 - Aksi visual: ${scene.visualAction || ''}
 - Teks pop-up layar: ${scene.popupText || ''}
@@ -670,7 +863,10 @@ Adegan saat ini:
 - Catatan / Mood: ${scene.notesMood || ''}
 - Durasi: ${scene.duration || 3} detik
 
-Tulis ulang adegan ini dalam format JSON yang ditingkatkan.`;
+PILIH KODE RAHASIA GOOGLE FLOW YANG SESUAI:
+/orbit360, /dollyin, /dollyout, /macro_texture, /speed_ramp, /slowmo_120fps, /vertigo_zoom, /fpv_glide, /tracking_follow, /shallow_dof
+
+Tulis ulang adegan ini dalam format JSON yang ditingkatkan:`;
 
     const config = {
       responseMimeType: 'application/json',
@@ -678,6 +874,9 @@ Tulis ulang adegan ini dalam format JSON yang ditingkatkan.`;
         type: Type.OBJECT,
         properties: {
           cameraAngle: { type: Type.STRING },
+          flowSecretCode: { type: Type.STRING, description: 'Google Flow secret code e.g. /orbit360, /dollyin' },
+          cameraMovement: { type: Type.STRING, description: 'Explicit camera motion direction' },
+          flowPrompt: { type: Type.STRING, description: 'Full hidden cinematic prompt for Google Flow' },
           visualAction: { type: Type.STRING },
           popupText: { type: Type.STRING },
           soundEffect: { type: Type.STRING },
@@ -697,40 +896,173 @@ Tulis ulang adegan ini dalam format JSON yang ditingkatkan.`;
       },
     };
 
-    const rawText = await generateWithFallback(prompt, config);
+    const rawText = await generateWithFallback(prompt, config, 'You are an elite UGC director. Return valid JSON only.', 6500);
     const parsedScene = parseSafeJson<any>(rawText);
 
     if (parsedScene && parsedScene.visualAction) {
-      return res.json({ success: true, scene: parsedScene });
+      const code = parsedScene.flowSecretCode || scene.flowSecretCode || '/dollyin';
+      const move = parsedScene.cameraMovement || scene.cameraMovement || parsedScene.cameraAngle || 'Smooth cinematic push-in';
+      const promptText = parsedScene.flowPrompt || `${code} [Shot: ${move}] [Subject: ${productName}] [Action: ${parsedScene.visualAction}] [Lighting: Studio softbox] [Style: 4K UHD, 9:16 vertical, 60fps cinematic flow]`;
+      return res.json({
+        success: true,
+        scene: {
+          ...parsedScene,
+          flowSecretCode: code,
+          cameraMovement: move,
+          flowPrompt: promptText,
+          duration: Number(parsedScene.duration) || scene.duration || 3,
+        },
+        source: 'gemini',
+      });
+    }
+  } catch (error: any) {
+    console.warn('Enhance scene AI model busy, applying smart creative polish engine:', error?.message || error);
+  }
+
+  // High-Impact Creative Polish Engine (Always Succeeds 100%)
+  const curAction = (scene.visualAction || '').trim();
+  const curVO = (scene.dialogVO || '').trim();
+  const curPopup = (scene.popupText || '').trim();
+  const curSFX = (scene.soundEffect || '').trim();
+
+  // Smart camera & flow determination
+  const code = scene.flowSecretCode || (scene.order === 1 ? '/dollyin' : '/orbit360');
+  const move = scene.cameraMovement || (code === '/dollyin' ? 'Cinematic push-in to subject eye-level' : 'Smooth orbital camera rotation around subject');
+
+  // Polish Visual Action
+  let enhancedAction = curAction;
+  if (!enhancedAction) {
+    enhancedAction = `Kreator menunjukkan kemasan ${productName} dengan gestur ekspresif dan kontak mata tulus ke kamera smartphone.`;
+  } else if (!enhancedAction.includes('ekspresif') && !enhancedAction.includes('kamera')) {
+    enhancedAction = `${enhancedAction} (Kamera stabil dengan gerakan ${move}, gestur tangan natural tanpa distorsi).`;
+  }
+
+  // Polish VO
+  let enhancedVO = curVO;
+  if (!enhancedVO) {
+    enhancedVO = `Beneran deh, ini salah satu penemuan terbaik yang wajib kalian coba sekarang!`;
+  } else if (!enhancedVO.endsWith('!') && !enhancedVO.endsWith('.')) {
+    enhancedVO = `${enhancedVO}! Beneran gak nyangka hasilnya senyata ini.`;
+  }
+
+  // Polish Popup Text
+  let enhancedPopup = curPopup;
+  if (!enhancedPopup) {
+    enhancedPopup = 'RAHASIA VIRAL TERUNGKAP! ✨';
+  } else if (!enhancedPopup.includes('🔥') && !enhancedPopup.includes('✨') && !enhancedPopup.includes('😱')) {
+    enhancedPopup = `${enhancedPopup.toUpperCase()} 🔥`;
+  }
+
+  // Polish SFX
+  let enhancedSFX = curSFX;
+  if (!enhancedSFX) {
+    enhancedSFX = 'Swoosh & Subtle Ding';
+  } else if (!enhancedSFX.includes('&') && !enhancedSFX.includes('+')) {
+    enhancedSFX = `${enhancedSFX} + Dynamic Bass`;
+  }
+
+  const flowPrompt = `${code} [Shot: ${move}] [Subject: ${productName}] [Action: ${enhancedAction}] [Lighting: Crisp commercial softbox, clean natural fill] [Style: 4K UHD, 9:16 vertical video, 60fps cinematic flow]`;
+
+  return res.json({
+    success: true,
+    scene: {
+      cameraAngle: scene.cameraAngle || 'Medium Close-up Dynamic',
+      flowSecretCode: code,
+      cameraMovement: move,
+      flowPrompt,
+      visualAction: enhancedAction,
+      popupText: enhancedPopup,
+      soundEffect: enhancedSFX,
+      dialogVO: enhancedVO,
+      notesMood: scene.notesMood || 'Pencahayaan terang kontras, framing vertikal 9:16, bebas filter artifisial.',
+      duration: Number(scene.duration) || 3,
+    },
+    source: 'creative-engine',
+  });
+});
+
+// Dedicated Google Flow AI Hidden Prompt Generator Endpoint
+app.post('/api/generate-flow-prompt', async (req, res) => {
+  try {
+    const { scene, productName = 'Produk Unggulan', category = 'UGC', visualFraming = 'vertical 9:16' } = req.body;
+    if (!scene) {
+      return res.status(400).json({ success: false, message: 'Data adegan wajib disertakan.' });
     }
 
-    // Rule-based enhancement fallback
+    const prompt = `Kamu adalah Director Sinematografi AI dan Spesialis Prompt Google Flow AI Video (Veo, Kling, Sora, Runway Gen-3).
+Tugasmu adalah menganalisis adegan storyboard berikut dan menghasilkan kode rahasia Flow AI beserta hidden prompt sinematik yang paling akurat dan memukau:
+Produk: ${productName}
+Kategori: ${category}
+Visual Framing: ${visualFraming}
+Sudut Kamera: ${scene.cameraAngle || 'Medium Shot'}
+Aksi Visual: ${scene.visualAction || ''}
+Voiceover: ${scene.dialogVO || ''}
+Mood & Lighting: ${scene.notesMood || ''}
+
+DAFTAR KODE RAHASIA GOOGLE FLOW (PILIH 1 PALING TEPAT):
+- Gerakan Kamera: /orbit360 (rotasi 360 memutar), /dollyin (dorong maju dramatis), /dollyout (tarik mundur reveal), /fpv_glide (glide lincah ala drone), /tracking_follow (mengikuti gerakan tangan), /vertigo_zoom (dolly zoom efek shock), /whip_pan (transisi cepat snap), /tilt_reveal (tilt vertikal reveal).
+- Lensa & Optik: /macro_texture (tekstur close-up droplet/formula), /rack_focus (pindah fokus latar ke produk), /shallow_dof (bokeh f/1.4 lembut), /anamorphic_flare (streak flare bioskop).
+- Kecepatan: /slowmo_120fps (gerak lambat cairan/cipratan), /speed_ramp (akselerasi lalu lambat), /hyperlapse (kompresi waktu stabil).
+- Lighting: /studio_softbox (komersial bersih), /golden_hour (cahaya sore hangat), /cyberpunk_neon (neon kontras), /rim_light_luxury (kilau garis tepi botol).
+- Transisi & Reveal: /before_after_wipe (wipe transformasi seketika), /match_cut (kontinuitas objek), /product_levitation (melayang gravitasi nol).
+
+OUTPUT FORMAT:
+Susun 'flowPrompt' dalam struktur standar:
+"{flowSecretCode} [Shot: {cameraMovement}] [Subject: {productName} / Talent] [Action: {visualAction}] [Lighting: {lightingMood}] [Style: 4K UHD hyperrealistic commercial, 9:16 vertical video, 60fps cinematic flow]"`;
+
+    const config = {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          flowSecretCode: { type: Type.STRING },
+          cameraMovement: { type: Type.STRING },
+          flowPrompt: { type: Type.STRING },
+        },
+        required: ['flowSecretCode', 'cameraMovement', 'flowPrompt'],
+      },
+    };
+
+    const rawText = await generateWithFallback(prompt, config, 'You are an elite Google Flow AI cinematographic prompter.', 6500);
+    const parsed = parseSafeJson<any>(rawText);
+
+    if (parsed && parsed.flowSecretCode && parsed.flowPrompt) {
+      return res.json({
+        success: true,
+        flowSecretCode: parsed.flowSecretCode,
+        cameraMovement: parsed.cameraMovement || scene.cameraAngle || 'Smooth cinematic movement',
+        flowPrompt: parsed.flowPrompt,
+      });
+    }
+
+    // Fallback prompt generation
+    const code = scene.flowSecretCode || '/dollyin';
+    const move = scene.cameraMovement || scene.cameraAngle || 'Smooth cinematic push-in';
+    const flowPrompt = `${code} [Shot: ${move}] [Subject: ${productName}] [Action: ${scene.visualAction || 'Kreator memperagakan produk secara meyakinkan'}] [Lighting: Studio softbox balance] [Style: 4K UHD, 9:16 vertical video, 60fps cinematic flow]`;
+
     return res.json({
       success: true,
-      scene: {
-        cameraAngle: scene.cameraAngle || 'Close-up Dynamic',
-        visualAction: scene.visualAction
-          ? `${scene.visualAction} (Gerakan tangan dipertegas, mimik ekspresif)`
-          : 'Kreator menunjukkan produk dengan gesture ekspresif.',
-        popupText: scene.popupText ? `${scene.popupText.toUpperCase()} 🔥` : 'RAHASIA VIRAL TERUNGKAP! ✨',
-        soundEffect: scene.soundEffect ? `${scene.soundEffect} + Bass boost` : 'Swoosh & Cha-ching',
-        dialogVO: scene.dialogVO
-          ? `${scene.dialogVO} Beneran gak nyangka sebagus ini!`
-          : 'Gak nyangka nemu barang sebagus ini!',
-        notesMood: scene.notesMood || 'Gaya teks: Dynamic Bouncy. Pencahayaan terang kontras.',
-        duration: Number(scene.duration) || 3,
-      },
+      flowSecretCode: code,
+      cameraMovement: move,
+      flowPrompt,
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (err: any) {
+    const code = req.body?.scene?.flowSecretCode || '/dollyin';
+    const move = req.body?.scene?.cameraMovement || req.body?.scene?.cameraAngle || 'Cinematic camera movement';
+    return res.json({
+      success: true,
+      flowSecretCode: code,
+      cameraMovement: move,
+      flowPrompt: `${code} [Shot: ${move}] [Subject: ${req.body?.productName || 'Produk'}] [Action: ${req.body?.scene?.visualAction || 'Product action'}] [Style: 4K UHD, 9:16 vertical, 60fps]`,
+    });
   }
 });
 
 // AI Hook Variations Generator
 app.post('/api/generate-hooks', async (req, res) => {
+  const productName = req.body?.productName || 'Produk';
+  const category = req.body?.category || 'Before & After';
   try {
-    const { productName = 'Produk', category = 'Before & After' } = req.body;
-
     const prompt = `Buatkan 5 variasi Hook 3 detik pertama paling viral untuk video UGC produk "${productName}" dalam kategori "${category}".
 Berikan 5 jenis:
 1. Visual Shock (Hook visual dramatis)
@@ -806,9 +1138,37 @@ Format JSON: array of objects dengan field: type, hookDialog, visualAction, popu
           sfx: 'Heartbeat & Dramatic bass',
         },
       ],
+      source: 'smart-template',
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Hooks generate fallback:', error);
+    return res.json({
+      success: true,
+      hooks: [
+        {
+          type: 'Visual Shock',
+          hookDialog: 'Jangan kaget kalau hasilnya se-drastis ini!',
+          visualAction: `Transisi cepat memperlihatkan hasil produk ${productName}.`,
+          popupText: 'JANGAN KAGET DULU! 😱',
+          sfx: 'Vine boom & Swoosh',
+        },
+        {
+          type: 'Curiosity / Question',
+          hookDialog: `Kenapa produk ${productName} ini bisa viral banget di TikTok?`,
+          visualAction: 'Menunjukkan detail fisik produk dengan rasa penasaran.',
+          popupText: 'KENAPA BISA VIRAL BANGET? 🤔',
+          sfx: 'Ding question chime',
+        },
+        {
+          type: 'Secret / FOMO',
+          hookDialog: 'Ini rahasia yang jarang dibocorin tapi beneran ampuh!',
+          visualAction: 'Gesture berbisik ke mikrofon.',
+          popupText: 'RAHASIA VIRAL 🤫',
+          sfx: 'Whisper ASMR & Chime',
+        },
+      ],
+      source: 'smart-template',
+    });
   }
 });
 
@@ -909,7 +1269,7 @@ Tugas Anda:
       prompt,
       config,
       'You are a professional UGC Ecommerce strategist in Southeast Asia and TikTok Shop. Return pure JSON with accurate product extraction.',
-      20000
+      7500
     );
 
     const parsed = parseSafeJson<any>(rawText);
@@ -1045,526 +1405,97 @@ Tugas Anda:
 app.post('/api/auto-detect', autoDetectHandler);
 app.post('/api/auto-detect-product', autoDetectHandler);
 
-// Endpoint: Trending Harvest - Shopee Real-Time Product Performance & UGC Master Opportunity Score
-app.post('/api/shopee-trends/harvest', async (req, res) => {
-  try {
-    const { category, keyword, minScore = 0, sortBy = 'score', filterMode = 'all', refresh = false } = req.body || {};
-
-    // Base seed items with authentic Indonesian Shopee marketplace metrics
-    const baseProducts = [
-      {
-        id: 'shp_1',
-        name: 'Skintific 5X Ceramide Barrier Moisture Gel 30g',
-        category: 'Skincare & Kecantikan',
-        shopeeCategorySlug: 'skincare',
-        price: 139000,
-        originalPrice: 169000,
-        discountPercent: 18,
-        affiliateCommissionPercent: 12,
-        affiliateCommissionAmount: 16680,
-        rating: 4.9,
-        reviewCount: 284000,
-        shopName: 'SKINTIFIC Official Store',
-        shopLocation: 'Jakarta Utara',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 620,
-          totalSold: 412000,
-          monthlyGrowthPercent: 175,
-          marketDemandScore: 96,
-          contentSaturation: 'Sedang',
-          creatorVideoCount: 1420,
-        },
-        recommendedAngle: 'Skincare Barrier Rescue (Sebelum vs Sesudah Kering Mengelupas)',
-        recommendedHook: 'Sumpah stop pakai skincare keras kalau skin barrier kamu lagi rusak merah-merah!',
-        targetAudience: 'Wanita/pria usia 18-35 dengan masalah kulit sensitif, kemerahan & bruntusan',
-        keySellingPoints: '5X Ceramide, Hyaluronic Acid, Centella Asiatica, tekstur gel dingin ringan menyerap dalam 10 detik',
-        recommendedFraming: 'face_closeup',
-        recommendedFormatId: 'before_after',
-        trendingTags: ['#skintific', '#skinbarrier', '#ceramide', '#moisturizerkering'],
-      },
-      {
-        id: 'shp_2',
-        name: 'INBEX Tripod Auto-Tracking AI 360° Face Sensor',
-        category: 'Gadget & Elektronik',
-        shopeeCategorySlug: 'gadget',
-        price: 189000,
-        originalPrice: 320000,
-        discountPercent: 41,
-        affiliateCommissionPercent: 15,
-        affiliateCommissionAmount: 28350,
-        rating: 4.8,
-        reviewCount: 34900,
-        shopName: 'INBEX Official Shop',
-        shopLocation: 'Kota Tangerang',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 480,
-          totalSold: 78500,
-          monthlyGrowthPercent: 210,
-          marketDemandScore: 94,
-          contentSaturation: 'Rendah',
-          creatorVideoCount: 380,
-        },
-        recommendedAngle: 'Solusi Bikin Konten Sendirian Tanpa Perlu Minta Tolong Kameramen',
-        recommendedHook: 'Buat kreator solo yang capek minta tolong orang buat videoin, kalian wajib liat ini!',
-        targetAudience: 'Kreator pemula, online shop owner, vlogger OOTD & dance cover',
-        keySellingPoints: 'Sensor AI cerdas tanpa aplikasi bluetooth, rotasi 360° otomatis, baterai tahan 8 jam, stabil kokoh',
-        recommendedFraming: 'hands_pov',
-        recommendedFormatId: 'problem_solution',
-        trendingTags: ['#tripodtracking', '#alatngonten', '#tripodai', '#inbextripod'],
-      },
-      {
-        id: 'shp_3',
-        name: 'Aerostreet Massive Low Sepatu Sneakers Casual Pria/Wanita',
-        category: 'Fashion & OOTD',
-        shopeeCategorySlug: 'fashion',
-        price: 149900,
-        originalPrice: 299000,
-        discountPercent: 50,
-        affiliateCommissionPercent: 10,
-        affiliateCommissionAmount: 14990,
-        rating: 4.9,
-        reviewCount: 512000,
-        shopName: 'Aerostreet Official',
-        shopLocation: 'Kab. Klaten',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 550,
-          totalSold: 890000,
-          monthlyGrowthPercent: 140,
-          marketDemandScore: 92,
-          contentSaturation: 'Sedang',
-          creatorVideoCount: 1850,
-        },
-        recommendedAngle: 'Styling OOTD Sneakers Lokal Kualitas Mewah di Bawah 150 Ribu',
-        recommendedHook: 'Sepatu 100 ribuan tapi kelihatan kayak 1 jutaan! Gak percaya? Cek detail jahitannya.',
-        targetAudience: 'Remaja, mahasiswa & pekerja muda penggemar casual streetwear',
-        keySellingPoints: 'Teknologi Shoes Injection Mould anti jebol meski kena air hujan, insole empuk, desain timeless',
-        recommendedFraming: 'full_body',
-        recommendedFormatId: 'haul',
-        trendingTags: ['#aerostreet', '#lokalpride', '#sneakersmurah', '#ootdkece'],
-      },
-      {
-        id: 'shp_4',
-        name: 'Sago Green Coffee Slimming Extract Herbal 15 Sachet',
-        category: 'Diet & Kesehatan',
-        shopeeCategorySlug: 'health',
-        price: 89000,
-        originalPrice: 125000,
-        discountPercent: 29,
-        affiliateCommissionPercent: 18,
-        affiliateCommissionAmount: 16020,
-        rating: 4.8,
-        reviewCount: 41200,
-        shopName: 'Sago Herbal Naturals',
-        shopLocation: 'Kota Bandung',
-        shopBadge: 'Star+',
-        imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 390,
-          totalSold: 64000,
-          monthlyGrowthPercent: 185,
-          marketDemandScore: 91,
-          contentSaturation: 'Sangat Rendah',
-          creatorVideoCount: 210,
-        },
-        recommendedAngle: 'Diet Santai Tanpa Kelaparan Menyiksa (Curhat Relatable)',
-        recommendedHook: 'Udah coba macam-macam diet tapi perut buncit masih nggelambir? Dengerin rahasia ini dulu.',
-        targetAudience: 'Pria & wanita usia 22-45 yang ingin turun berat badan sehat & aman lambung',
-        keySellingPoints: 'Green coffee chlorogenic acid alami, bikin kenyang awet, detox pencernaan lancar, rasa gurih nikmat',
-        recommendedFraming: 'full_body',
-        recommendedFormatId: 'before_after',
-        trendingTags: ['#dietsehat', '#kopihijau', '#perutbuncit', '#turunbb'],
-      },
-      {
-        id: 'shp_5',
-        name: 'Pembersih Noda Kerak Ajaib Serbaguna Porcelain Clean 500ml',
-        category: 'Home & Living',
-        shopeeCategorySlug: 'home',
-        price: 49000,
-        originalPrice: 85000,
-        discountPercent: 42,
-        affiliateCommissionPercent: 16,
-        affiliateCommissionAmount: 7840,
-        rating: 4.9,
-        reviewCount: 89000,
-        shopName: 'CleanHome Solution ID',
-        shopLocation: 'Kota Surabaya',
-        shopBadge: 'Star+',
-        imageUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 510,
-          totalSold: 162000,
-          monthlyGrowthPercent: 230,
-          marketDemandScore: 95,
-          contentSaturation: 'Sangat Rendah',
-          creatorVideoCount: 190,
-        },
-        recommendedAngle: 'Visual Shock Kerak Kamar Mandi Hitam Rontok Sekali Oles Tanpa Disikat',
-        recommendedHook: 'Jangan ganti keramik kamar mandi dulu! Lihat gimana kerak tahunan ini rontok cuma 5 detik!',
-        targetAudience: 'Ibu rumah tangga, anak kost, pemilik rumah yang ingin rumah bersih kinclong',
-        keySellingPoints: 'Formula aktif pengikis kerak membandel, tidak berbau menyengat, aman untuk nat & stainless steel',
-        recommendedFraming: 'hands_pov',
-        recommendedFormatId: 'satisfying_asmr',
-        trendingTags: ['#bersihbersih', '#pembersihkerak', '#rumahkinclong', '#asmrcleaning'],
-      },
-      {
-        id: 'shp_6',
-        name: 'Pompa ASI Elektrik Hands-Free Wireless Wearable Breastpump',
-        category: 'Ibu & Bayi',
-        shopeeCategorySlug: 'baby',
-        price: 249000,
-        originalPrice: 399000,
-        discountPercent: 38,
-        affiliateCommissionPercent: 14,
-        affiliateCommissionAmount: 34860,
-        rating: 4.8,
-        reviewCount: 22100,
-        shopName: 'MommyCare Baby Store',
-        shopLocation: 'Jakarta Barat',
-        shopBadge: 'Official Store',
-        imageUrl: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 280,
-          totalSold: 38400,
-          monthlyGrowthPercent: 160,
-          marketDemandScore: 88,
-          contentSaturation: 'Rendah',
-          creatorVideoCount: 175,
-        },
-        recommendedAngle: 'Working Mom Hack: Pumping Sambil Ngetik di Kantor Tanpa Ada yang Tahu',
-        recommendedHook: 'Penyelamat hidup working mom! Sekarang bisa pumping di kantor tanpa harus sembunyi di toilet.',
-        targetAudience: 'Ibu menyusui, working mom, new moms yang butuh pompa ASI praktis tanpa kabel',
-        keySellingPoints: 'Desain masuk ke dalam bra tanpa selang kabel, motor ultra-silent di bawah 40dB, 9 level hisapan lembut',
-        recommendedFraming: 'hands_pov',
-        recommendedFormatId: 'review',
-        trendingTags: ['#pompaasi', '#workingmom', '#pejuangasi', '#asieksklusif'],
-      },
-      {
-        id: 'shp_7',
-        name: 'Glad2Glow Pomegranate 10% Niacinamide Power Bright Serum',
-        category: 'Skincare & Kecantikan',
-        shopeeCategorySlug: 'skincare',
-        price: 49000,
-        originalPrice: 69000,
-        discountPercent: 29,
-        affiliateCommissionPercent: 15,
-        affiliateCommissionAmount: 7350,
-        rating: 4.9,
-        reviewCount: 310000,
-        shopName: 'Glad2Glow Official Store',
-        shopLocation: 'Jakarta Utara',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1608248597359-005d5e23631f?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 680,
-          totalSold: 720000,
-          monthlyGrowthPercent: 155,
-          marketDemandScore: 97,
-          contentSaturation: 'Sedang',
-          creatorVideoCount: 2400,
-        },
-        recommendedAngle: 'Solusi Bekas Jerawat Menghitam Pudar Cepat Ramah Dompet Mahasiswa',
-        recommendedHook: 'Serum pencerah 40 ribuan tapi kandungannya 10% Niacinamide murni? Nih buktinya!',
-        targetAudience: 'Remaja dan mahasiswa dengan kulit kusam dan PIH bekas jerawat',
-        keySellingPoints: 'Ekstrak Delima & Niacinamide 10%, tekstur seringan air, cepat meresap tanpa rasa lengket',
-        recommendedFraming: 'face_closeup',
-        recommendedFormatId: 'problem_solution',
-        trendingTags: ['#glad2glow', '#serumpencerah', '#bekasjerawat', '#skincarepelajar'],
-      },
-      {
-        id: 'shp_8',
-        name: 'Baseus Bowie WM02 TWS Bluetooth 5.3 Earphones Mini Pods',
-        category: 'Gadget & Elektronik',
-        shopeeCategorySlug: 'gadget',
-        price: 169000,
-        originalPrice: 289000,
-        discountPercent: 41,
-        affiliateCommissionPercent: 11,
-        affiliateCommissionAmount: 18590,
-        rating: 4.8,
-        reviewCount: 180000,
-        shopName: 'Baseus Official Mall',
-        shopLocation: 'Jakarta Pusat',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 430,
-          totalSold: 290000,
-          monthlyGrowthPercent: 125,
-          marketDemandScore: 89,
-          contentSaturation: 'Sedang',
-          creatorVideoCount: 890,
-        },
-        recommendedAngle: 'Bass Nendang & Baterai Tahan Seminggu untuk Daily Commute & Gym',
-        recommendedHook: 'TWS harga 100 ribuan tapi punya aplikasi equalizer sendiri? Desain transparan estetik abis!',
-        targetAudience: 'Pecinta musik, pekerja komuter KRL/MRT, gamer casual & pelari',
-        keySellingPoints: 'Desain kapsul transparan estetik, low latency 0.06s untuk gaming, playtime hingga 25 jam',
-        recommendedFraming: 'hands_pov',
-        recommendedFormatId: 'unboxing',
-        trendingTags: ['#baseus', '#twsmurah', '#earphonebluetooth', '#gadgetviral'],
-      },
-      {
-        id: 'shp_9',
-        name: 'Flimty Minuman Serat Alami Rasa Blackcurrant / Raspberry',
-        category: 'Diet & Kesehatan',
-        shopeeCategorySlug: 'health',
-        price: 295000,
-        originalPrice: 350000,
-        discountPercent: 16,
-        affiliateCommissionPercent: 10,
-        affiliateCommissionAmount: 29500,
-        rating: 4.9,
-        reviewCount: 480000,
-        shopName: 'Flimty Official Store',
-        shopLocation: 'Jakarta Barat',
-        shopBadge: 'Shopee Mall',
-        imageUrl: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 580,
-          totalSold: 840000,
-          monthlyGrowthPercent: 110,
-          marketDemandScore: 93,
-          contentSaturation: 'Tinggi',
-          creatorVideoCount: 3200,
-        },
-        recommendedAngle: 'Detox Saluran Cerna Setelah Makan Berlemak / Cheat Day',
-        recommendedHook: 'Habis makan all-you-can-eat atau gorengan banyak? Wajib minum ini sebelum tidur biar gak nimbun!',
-        targetAudience: 'Pria/wanita yang sering begadang, sembelit, atau makan makanan cepat saji',
-        keySellingPoints: 'Psyllium Husk, Goji Berry, Ekstrak Buah & Sayur, membantu detoksifikasi & melancarkan BAB harian',
-        recommendedFraming: 'hands_pov',
-        recommendedFormatId: 'review',
-        trendingTags: ['#flimty', '#minumanserat', '#detoxtubuh', '#dietkenyang'],
-      },
-      {
-        id: 'shp_10',
-        name: 'Oversized Boxy Heavyweight Hoodie Cotton Fleece 330gsm',
-        category: 'Fashion & OOTD',
-        shopeeCategorySlug: 'fashion',
-        price: 175000,
-        originalPrice: 280000,
-        discountPercent: 37,
-        affiliateCommissionPercent: 12,
-        affiliateCommissionAmount: 21000,
-        rating: 4.9,
-        reviewCount: 62000,
-        shopName: 'RawType Studio Apparel',
-        shopLocation: 'Kota Bandung',
-        shopBadge: 'Star+',
-        imageUrl: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80',
-        metrics: {
-          salesVelocityDay: 320,
-          totalSold: 49000,
-          monthlyGrowthPercent: 165,
-          marketDemandScore: 87,
-          contentSaturation: 'Rendah',
-          creatorVideoCount: 290,
-        },
-        recommendedAngle: 'Koreans Boxy Cut Fit: Hoodie Tebal Siluet Keren yang Bikin Postur Tegap',
-        recommendedHook: 'Pencarian hoodie boxy sempurna berakhir di sini! Cuttingan bahu jatuh bikin badan keliatan tegap.',
-        targetAudience: 'Cowok & cewek pencinta streetwear clean minimalis',
-        keySellingPoints: 'Heavyweight fleece 330gsm tebal jatuh, rib tangan presisi, kapuchon tebal tegak tidak lepek',
-        recommendedFraming: 'full_body',
-        recommendedFormatId: 'haul',
-        trendingTags: ['#hoodieboxy', '#heavyweighthoodie', '#streetwearindo', '#ootdkece'],
-      },
-    ];
-
-    // Merge base catalog with extended master pool
-    let workingItems = [...HARVEST_MASTER_CATALOG];
-
-    // Optional Gemini AI Live Discovery if refreshed or searching with custom keyword
-    const ai = getGeminiClient();
-    if (ai && (refresh || (keyword && keyword.trim().length > 2))) {
-      try {
-        const catLabel = category && category !== 'all' ? `kategori "${category}"` : 'berbagai kategori populer Shopee Indonesia';
-        const searchContext = keyword ? `fokus kata kunci: "${keyword}"` : 'fokus: LOW COMPETITOR & HIGH SEARCH (Blue Ocean)';
-
-        const aiPrompt = `Kamu adalah E-Commerce Trend Analyst Shopee Indonesia & TikTok Shop Creator Affiliate.
-Rekomendasikan 4 produk VIRAL TERBARU di Shopee Indonesia yang memenuhi kriteria:
-1. PENCARIAN TINGGI (High Search Volume & Buyer Demand)
-2. LOW COMPETITION (Persaingan kreator masih rendah, <350 video kreator di TikTok/Shopee Video)
-3. Target: ${catLabel}, ${searchContext}.
-4. Harga realistis Rp 29.000 - Rp 299.000, komisi affiliate 10% - 18%.
-5. Hook 3 detik pertama bergaya FOMO/solusi instan bahasa Indonesia.
-
-KEMBALIKAN HANYA JSON array dengan format:
-[
-  {
-    "name": "Nama produk spesifik",
-    "category": "Kategori Lengkap",
-    "shopeeCategorySlug": "skincare|gadget|home|fashion|health|baby",
-    "price": 85000,
-    "originalPrice": 139000,
-    "discountPercent": 38,
-    "affiliateCommissionPercent": 15,
-    "affiliateCommissionAmount": 12750,
-    "rating": 4.9,
-    "reviewCount": 21000,
-    "shopName": "Nama Toko Official",
-    "shopLocation": "Jakarta Barat",
-    "shopBadge": "Shopee Mall",
-    "metrics": {
-      "salesVelocityDay": 410,
-      "totalSold": 48000,
-      "monthlyGrowthPercent": 210,
-      "marketDemandScore": 93,
-      "contentSaturation": "Rendah",
-      "creatorVideoCount": 170
-    },
-    "recommendedAngle": "Angle konten unik",
-    "recommendedHook": "Hook pembuka 3 detik",
-    "targetAudience": "Target audiens spesifik",
-    "keySellingPoints": "Keunggulan utama produk",
-    "recommendedFraming": "hands_pov",
-    "recommendedFormatId": "problem_solution",
-    "trendingTags": ["#tag1", "#tag2"]
-  }
-]`;
-
-        const aiRaw = await generateWithFallback(
-          aiPrompt,
-          {
-            temperature: 0.8,
-            maxOutputTokens: 2500,
-            responseMimeType: 'application/json',
-          },
-          'You are an expert Indonesian e-commerce trend analyst. Return pure JSON array only.',
-          12000
-        );
-
-        if (aiRaw) {
-          const parsed = JSON.parse(aiRaw.trim());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const aiFormatted = parsed.map((item: any, idx: number) => ({
-              ...item,
-              id: `shp_ai_${Date.now()}_${idx}`,
-              imageUrl: getRandomImageUrl(item.shopeeCategorySlug || 'home'),
-              affiliateCommissionAmount: Math.round(item.price * ((item.affiliateCommissionPercent || 12) / 100)),
-            }));
-            workingItems = [...aiFormatted, ...HARVEST_MASTER_CATALOG];
-          }
-        }
-      } catch (geminiErr) {
-        console.warn('Gemini trend harvest live search fallback:', geminiErr);
-      }
-    }
-
-    // Dynamic metrics jitter on refresh so user sees live update
-    if (refresh) {
-      workingItems = workingItems.map((item, idx) => {
-        const randomShift = 1 + (Math.sin(Date.now() / 1000 + idx) * 0.12);
-        const velocity = Math.max(150, Math.round(item.metrics.salesVelocityDay * randomShift));
-        const growth = Math.max(100, Math.round(item.metrics.monthlyGrowthPercent * (1 + (Math.cos(idx) * 0.08))));
-        return {
-          ...item,
-          metrics: {
-            ...item.metrics,
-            salesVelocityDay: velocity,
-            monthlyGrowthPercent: growth,
-          },
-        };
-      });
-
-      // Sort randomly on refresh to surface fresh top opportunities
-      workingItems.sort(() => Math.random() - 0.5);
-    }
-
-    // Compute Opportunity Score & Blue Ocean Score
-    let enriched = workingItems.map(computeProductScores);
-
-    // Filter by category
-    if (category && category !== 'all') {
-      enriched = enriched.filter((p) => p.shopeeCategorySlug === category);
-    }
-
-    // Filter by keyword
-    if (keyword && keyword.trim()) {
-      const q = keyword.toLowerCase().trim();
-      const filtered = enriched.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.keySellingPoints.toLowerCase().includes(q) ||
-          p.recommendedAngle.toLowerCase().includes(q) ||
-          p.trendingTags.some((t: string) => t.toLowerCase().includes(q))
-      );
-      if (filtered.length > 0) {
-        enriched = filtered;
-      }
-    }
-
-    // Filter by specialized filters
-    if (filterMode === 'blue_ocean') {
-      enriched = enriched.filter((p) => p.isBlueOcean);
-    } else if (filterMode === 'high_growth') {
-      enriched = enriched.filter((p) => p.metrics.monthlyGrowthPercent >= 180);
-    } else if (filterMode === 'high_commission') {
-      enriched = enriched.filter((p) => p.affiliateCommissionPercent >= 14);
-    }
-
-    // Filter by minScore
-    if (minScore > 0) {
-      enriched = enriched.filter((p) => (p.ugcOpportunityScore || 0) >= minScore);
-    }
-
-    // Sorting
-    if (sortBy === 'blue_ocean') {
-      enriched.sort((a, b) => (b.blueOceanScore || 0) - (a.blueOceanScore || 0));
-    } else if (sortBy === 'velocity') {
-      enriched.sort((a, b) => b.metrics.salesVelocityDay - a.metrics.salesVelocityDay);
-    } else if (sortBy === 'growth') {
-      enriched.sort((a, b) => b.metrics.monthlyGrowthPercent - a.metrics.monthlyGrowthPercent);
-    } else if (sortBy === 'commission') {
-      enriched.sort((a, b) => b.affiliateCommissionAmount - a.affiliateCommissionAmount);
-    } else {
-      enriched.sort((a, b) => (b.ugcOpportunityScore || 0) - (a.ugcOpportunityScore || 0));
-    }
-
-    const blueOceanCount = enriched.filter((p) => p.isBlueOcean).length;
-    const marketInsights = `Data panen real-time Shopee Indonesia: Ditemukan ${blueOceanCount} produk "Blue Ocean" (Pencarian Tinggi & Kompetitor Rendah). Video kreator pada segmen ini memiliki probabilitas FYP 3.8x lebih tinggi karena belum padat persaingan.`;
-
-    return res.json({
-      success: true,
-      products: enriched,
-      total: enriched.length,
-      blueOceanCount,
-      harvestTimestamp: new Date().toISOString(),
-      marketInsights,
-    });
-  } catch (err: any) {
-    console.error('Error in /api/shopee-trends/harvest:', err);
-    res.status(500).json({ error: err.message || 'Gagal mengambil data tren Shopee' });
-  }
-});
-
+// Helper to get directory safely across both native ESM (dev) and bundled CommonJS (production)
+const getBaseDir = () => (typeof __dirname !== 'undefined' ? __dirname : process.cwd());
 
 // Serve @ffmpeg/core assets statically (for client-side FFmpeg WebAssembly)
-app.use('/ffmpeg', express.static(path.join(process.cwd(), 'node_modules/@ffmpeg/core/dist/umd')));
+const ffmpegDirCandidates = [
+  path.join(process.cwd(), 'node_modules/@ffmpeg/core/dist/umd'),
+  path.resolve(getBaseDir(), '../node_modules/@ffmpeg/core/dist/umd'),
+];
+for (const dir of ffmpegDirCandidates) {
+  if (fs.existsSync(dir)) {
+    app.use('/ffmpeg', express.static(dir));
+    break;
+  }
+}
 
 // Setup Vite development middleware or static production serving
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+  // Detect environment accurately:
+  // In the AI Studio development sandbox, process.env.CONTROL_PLANE_PORT or NODE_ENV !== 'production' is set.
+  // In Cloud Run production deployment, the bundled dist/server.cjs is executed in production mode.
+  const isBundled = typeof __filename !== 'undefined' ? (__filename.endsWith('.cjs') || __filename.includes('dist')) : false;
+  const isDevSandbox = !isBundled && (process.env.NODE_ENV === 'development' || Boolean(process.env.CONTROL_PLANE_PORT));
+  const isProduction = !isDevSandbox;
+
+  if (!isProduction) {
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn('Vite dev middleware init error, falling back to static files:', viteErr);
+      const distPath = fs.existsSync(path.join(getBaseDir(), 'index.html'))
+        ? getBaseDir()
+        : path.resolve(process.cwd(), 'dist');
+      if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+          res.sendFile(path.join(distPath, 'index.html'));
+        });
+      }
+    }
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    // Production static serving from dist/
+    const distPath = fs.existsSync(path.join(getBaseDir(), 'index.html'))
+      ? getBaseDir()
+      : path.resolve(process.cwd(), 'dist');
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(200).send('<!DOCTYPE html><html><body><h1>UGC Master App</h1></body></html>');
+        }
+      });
+    }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`UGC Master server running at http://0.0.0.0:${PORT}`);
+  // Determine port:
+  // - In AI Studio Dev Sandbox: Port 3000 is required by the local nginx proxy.
+  // - In Cloud Run Production: Cloud Run sets process.env.PORT (typically 8080) for health checks and traffic ingress.
+  const PORT = isDevSandbox
+    ? 3000
+    : (process.env.PORT ? parseInt(process.env.PORT, 10) : 8080);
+
+  const mainServer = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`UGC Master server running at http://0.0.0.0:${PORT} (isProduction=${isProduction})`);
   });
+
+  mainServer.on('error', (err: any) => {
+    console.error(`Main server error on port ${PORT}:`, err.message);
+  });
+
+  // If in production and PORT is not 3000, also bind an auxiliary listener on port 3000
+  // to seamlessly handle any proxies routing to 3000 as well
+  if (isProduction && PORT !== 3000) {
+    try {
+      const auxServer = app.listen(3000, '0.0.0.0', () => {
+        console.log('UGC Master also listening on auxiliary port 3000');
+      });
+      auxServer.on('error', (err: any) => {
+        // Safe to ignore if port 3000 is unavailable or already in use
+      });
+    } catch {
+      // safe fallback
+    }
+  }
 }
 
 startServer();
