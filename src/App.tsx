@@ -10,9 +10,7 @@ import { AIGeneratorModal } from './components/AIGeneratorModal';
 import { HookGeneratorModal } from './components/HookGeneratorModal';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { ExportModal } from './components/ExportModal';
-import { VideoExportModal } from './components/VideoExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
-import { PasswordGate } from './components/PasswordGate';
 import { UGC_CATEGORIES } from './data/categories';
 import {
   Scene,
@@ -23,17 +21,8 @@ import {
   StoryboardViewMode,
   ShotItem,
   HookVariant,
-  GoogleUserProfile,
 } from './types';
-import { initAuth, googleSignIn, googleSignOut } from './services/googleAuth';
-import { copyToClipboard, generateId, sanitizeStoryboardForJSON } from './utils/helpers';
-import {
-  saveProjectsToLocalStorage,
-  saveProjectsToIndexedDB,
-  loadProjectsFromIndexedDB,
-  STORAGE_KEY,
-  CURRENT_PROJECT_ID_KEY,
-} from './utils/storage';
+import { copyToClipboard, generateId } from './utils/helpers';
 import {
   Plus,
   Sparkles,
@@ -48,9 +37,11 @@ import {
   Copy,
   Info,
   Code,
-  Check,
-  Zap
+  Check
 } from 'lucide-react';
+
+const STORAGE_KEY = 'ugc_master_projects_v1';
+const CURRENT_PROJECT_ID_KEY = 'ugc_master_current_proj_id';
 
 // Initial project matching UGC Before & After format with 6 rich scenes
 const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
@@ -59,8 +50,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
   categoryId: 'before_after',
   productName: 'Sago Green Coffee',
   targetAudience: 'Pria/wanita diet & sehat',
-  visualFraming: 'full_body',
-  productImageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80',
   caption: 'Cobain Sago Green Coffee! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -101,9 +90,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_1',
       order: 1,
       cameraAngle: 'Medium Shot',
-      flowSecretCode: '/dollyin',
-      cameraMovement: 'Slow steady push-in to emphasize distress',
-      flowPrompt: '/dollyin [Shot: Medium Shot slow steady push-in] [Subject: Bapak bertubuh buncit garuk kepala di depan cermin] [Action: Mengeluh baju kesempitan di depan cermin] [Style: Photorealistic 4K UGC 9:16 cinematic lighting]',
       visualAction: 'Bapak bertubuh buncit garuk kepala sambil nelpon di depan cermin, kancing baju meregang sempit.',
       popupText: 'DIET GAGAL MULU, BAJU GAK MUAT?! 😫',
       soundEffect: 'Phone ring & sigh',
@@ -115,9 +101,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_2',
       order: 2,
       cameraAngle: 'Close-up Frustrated',
-      flowSecretCode: '/whipzoom',
-      cameraMovement: 'Rapid punch-in to digital scale digits',
-      flowPrompt: '/whipzoom [Shot: Close-up rapid punch-in] [Subject: Timbangan digital dan ekspresi lelah] [Action: Bapak menatap timbangan digital dengan putus asa] [Style: High-tension dramatic focus, 60fps 4K]',
       visualAction: 'Bapak menatap timbangan digital dengan ekspresi lelah dan putus asa.',
       popupText: 'COBAIN DIET EKSTREM MALAH LEMAS 😭',
       soundEffect: 'Record scratch freeze & Dramatic dun dun dun',
@@ -129,9 +112,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_3',
       order: 3,
       cameraAngle: 'Close-up B-Roll',
-      flowSecretCode: '/orbit360',
-      cameraMovement: 'Smooth 360° orbital rotation around coffee sachet',
-      flowPrompt: '/orbit360 [Shot: Close-up 360 orbital rotation] [Subject: Kemasan Sago Green Coffee sachet] [Action: Dipegang tangan dengan latar cahaya pagi hangat] [Style: Commercial B-roll macro detail, 4K UHD]',
       visualAction: 'Menunjukkan kemasan Sago Green Coffee sachet praktis di tangan dengan latar cerah.',
       popupText: 'UNTUNG NEMU SAGO GREEN COFFEE ☕',
       soundEffect: 'Swoosh & sparkle chime',
@@ -143,9 +123,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_4',
       order: 4,
       cameraAngle: 'POV / Medium Shot',
-      flowSecretCode: '/spiral',
-      cameraMovement: 'Spiral descending corkscrew motion into steaming mug',
-      flowPrompt: '/spiral [Shot: POV spiral descending corkscrew] [Subject: Cangkir kopi hijau mengepul] [Action: Mengaduk larutan kopi hijau dengan sendok] [Style: Appetizing steam particles, warm morning rim light, 4K]',
       visualAction: 'Menyeduh sachet kopi hijau dengan air panas, aroma mengepul nikmat diaduk dengan sendok.',
       popupText: 'RASA ENAK & BIKIN KENYANG TAHAN LAMA 😋',
       soundEffect: 'Pouring water swirl & Stirring cup ting',
@@ -157,9 +134,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_5',
       order: 5,
       cameraAngle: 'Wide Shot',
-      flowSecretCode: '/tracking',
-      cameraMovement: 'Smooth lateral tracking following confident posture',
-      flowPrompt: '/tracking [Shot: Wide Shot smooth tracking] [Subject: Bapak bugar kaos pas badan perut kempes] [Action: Tersenyum percaya diri melihat hasil transformasi] [Style: Vibrant daylight, crisp 4K sharp detail]',
       visualAction: 'Bapak tampil bugar dan percaya diri, mengenakan kaos pas badan dengan perut kempes rata.',
       popupText: 'TURUN 8 KG PERUT KEMPES! 💪',
       soundEffect: 'Level up victory chime & Bell ding',
@@ -171,9 +145,6 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
       id: 'sc_6',
       order: 6,
       cameraAngle: 'Medium Close-up',
-      flowSecretCode: '/dollyout',
-      cameraMovement: 'Gentle backward pull-out revealing bottom shopping cart',
-      flowPrompt: '/dollyout [Shot: Medium Close-up gentle pull-out] [Subject: Talent memegang produk tersenyum ramah] [Action: Menunjuk ke arah keranjang kuning CTA] [Style: Warm engaging TikTok UGC creator format, 9:16 4K]',
       visualAction: 'Bapak tersenyum memegang produk sambil menunjuk ke keranjang kuning di kiri bawah.',
       popupText: 'PROMO BELI 2 GRATIS 1 + FREE ONGKIR 🛒',
       soundEffect: 'Cha-ching cash register & Applause',
@@ -206,32 +177,8 @@ export default function App() {
     return INITIAL_BEFORE_AFTER_PROJECT.id;
   });
 
-  // View Mode: 'cards' (editor) | 'table' (script breakdown) | 'phone_preview' (9:16 simulation) | 'shot_list' | 'rate_card'
+  // View Mode: 'cards' (editor) | 'table' (script breakdown) | 'phone_preview' (9:16 simulation)
   const [viewMode, setViewMode] = useState<StoryboardViewMode>('cards');
-
-  // Application Password Gate State (Initial security gate: Ilalang@27)
-  const [isAppUnlocked, setIsAppUnlocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('ugc_studio_auth_unlocked') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleUnlockApp = () => {
-    try {
-      localStorage.setItem('ugc_studio_auth_unlocked', 'true');
-    } catch {}
-    setIsAppUnlocked(true);
-    showToast('🔓 Akses Berhasil Terbuka! Selamat datang di UGC Studio.');
-  };
-
-  const handleLockApp = () => {
-    try {
-      localStorage.removeItem('ugc_studio_auth_unlocked');
-    } catch {}
-    setIsAppUnlocked(false);
-  };
 
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [isCaptionOpen, setIsCaptionOpen] = useState(true);
@@ -240,66 +187,15 @@ export default function App() {
 
   // Modals state
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
-  const [aiModalInitialParams, setAiModalInitialParams] = useState<Partial<AIGenerateParams> | null>(null);
   const [isHooksModalOpen, setIsHooksModalOpen] = useState(false);
   const [isTeleprompterOpen, setIsTeleprompterOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [exportModalInitialTab, setExportModalInitialTab] = useState<'table' | 'flow' | 'caption' | 'script' | 'capcut' | 'json'>('table');
+  const [exportModalInitialTab, setExportModalInitialTab] = useState<'table' | 'caption' | 'script' | 'capcut' | 'json'>('table');
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [isJsonCopied, setIsJsonCopied] = useState(false);
 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [enhancingSceneId, setEnhancingSceneId] = useState<string | null>(null);
-
-  // Google Flow / Google Auth Credentials state
-  const [googleUser, setGoogleUser] = useState<GoogleUserProfile | null>(null);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-
-  // Initialize Google Auth on mount & hydrate from IndexedDB
-  useEffect(() => {
-    const unsubscribe = initAuth(
-      (user) => setGoogleUser(user),
-      (token) => setGoogleAccessToken(token)
-    );
-
-    // Hydrate projects from IndexedDB if available (contains any cached offline images)
-    loadProjectsFromIndexedDB()
-      .then((dbProjects) => {
-        if (dbProjects && Array.isArray(dbProjects) && dbProjects.length > 0) {
-          setProjects(dbProjects);
-        }
-      })
-      .catch(() => {});
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setGoogleUser(result.profile);
-        setGoogleAccessToken(result.accessToken);
-        showToast(`👋 Halo ${result.profile.displayName || 'Kreator'}! Google Flow & Drive terhubung.`);
-      }
-      // If result is null, user cancelled or closed popup gracefully
-    } catch (err: any) {
-      console.warn('Google Sign-In caught notice:', err);
-      showToast(err.message || 'Gagal masuk dengan Google');
-    }
-  };
-
-  const handleGoogleLogout = async () => {
-    try {
-      await googleSignOut();
-      setGoogleUser(null);
-      setGoogleAccessToken(null);
-      showToast('Berhasil keluar dari akun Google.');
-    } catch (err) {
-      showToast('Gagal logout.');
-    }
-  };
 
   // Active Project
   const currentProject = projects.find((p) => p.id === currentProjectId) || projects[0] || INITIAL_BEFORE_AFTER_PROJECT;
@@ -309,20 +205,23 @@ export default function App() {
     UGC_CATEGORIES.find((c) => c.id === currentProject?.categoryId) ||
     UGC_CATEGORIES[8]; // before_after default
 
-  // Generate full comprehensive storyboard JSON object (without image data for Google Flow)
+  // Generate full comprehensive storyboard JSON object
   const getFullStoryboardJSON = () => {
-    const rawData = {
-      id: currentProject.id,
-      title: currentProject.title,
-      category: activeCategory.name,
-      categoryId: currentProject.categoryId,
-      totalDuration: currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0),
-      caption: currentProject.caption || '',
-      hookVariants: currentProject.hookVariants || [],
-      scenes: currentProject.scenes,
-      exportedAt: new Date().toISOString(),
-    };
-    return JSON.stringify(sanitizeStoryboardForJSON(rawData), null, 2);
+    return JSON.stringify(
+      {
+        id: currentProject.id,
+        title: currentProject.title,
+        category: activeCategory.name,
+        categoryId: currentProject.categoryId,
+        totalDuration: currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0),
+        caption: currentProject.caption || '',
+        hookVariants: currentProject.hookVariants || [],
+        scenes: currentProject.scenes,
+        exportedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    );
   };
 
   // 1-Click Copy Storyboard JSON to clipboard
@@ -334,40 +233,29 @@ export default function App() {
       showToast('JSON Storyboard berhasil disalin ke clipboard! 📋');
       setTimeout(() => setIsJsonCopied(false), 2500);
     } else {
-      // Direct fallback: Download JSON file so the user is never blocked by browser iframe clipboard restrictions
-      try {
-        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const safeTitle = (currentProject.title || 'storyboard')
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '_');
-        a.href = url;
-        a.download = `${safeTitle}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setIsJsonCopied(true);
-        showToast('Clipboard dibatasi browser. File JSON otomatis diunduh! 📁');
-        setTimeout(() => setIsJsonCopied(false), 2500);
-      } catch {
-        handleOpenExportWithTab('json');
-        showToast('Buka tab JSON untuk menyalin secara manual 📋');
-      }
+      showToast('Gagal menyalin JSON ke clipboard.');
     }
   };
 
-  const handleOpenExportWithTab = (tab: 'table' | 'flow' | 'caption' | 'script' | 'capcut' | 'json' = 'table') => {
+  const handleOpenExportWithTab = (tab: 'table' | 'caption' | 'script' | 'capcut' | 'json' = 'table') => {
     setExportModalInitialTab(tab);
     setIsExportModalOpen(true);
   };
 
-  // Save projects resiliently to localStorage (quota-safe, base64-stripped) and IndexedDB (full data)
+  // Save projects to localStorage on change
   useEffect(() => {
-    saveProjectsToLocalStorage(projects, currentProjectId);
-    saveProjectsToIndexedDB(projects);
-  }, [projects, currentProjectId]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    } catch (e) {
+      console.error('Failed to save projects to localStorage:', e);
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CURRENT_PROJECT_ID_KEY, currentProjectId);
+    } catch {}
+  }, [currentProjectId]);
 
   // Toast Helper
   const showToast = (msg: string) => {
@@ -432,17 +320,10 @@ export default function App() {
 
   // Scene Operations
   const handleAddScene = () => {
-    const newOrder = currentProject.scenes.length + 1;
-    const defaultFlowCode = newOrder === 1 ? '/dollyin' : '/orbit360';
-    const defaultCameraMovement = newOrder === 1 ? 'Slow push-in towards talent' : 'Smooth orbital camera movement';
-
     const newScene: Scene = {
       id: generateId(),
-      order: newOrder,
+      order: currentProject.scenes.length + 1,
       cameraAngle: 'Medium Shot',
-      flowSecretCode: defaultFlowCode,
-      cameraMovement: defaultCameraMovement,
-      flowPrompt: `${defaultFlowCode} [Shot: Medium Shot ${defaultCameraMovement}] [Subject: Talent & Produk] [Action: Kreator menjelaskan keunggulan produk secara antusias] [Style: 4K UHD, 9:16 vertical video, 60fps cinematic flow]`,
       visualAction: 'Kreator menjelaskan keunggulan produk secara antusias ke kamera.',
       popupText: 'REKOMENDASI TERBAIK ✨',
       soundEffect: 'Swoosh',
@@ -456,7 +337,7 @@ export default function App() {
       scenes: [...p.scenes, newScene],
     }));
 
-    showToast(`Adegan ${newOrder} berhasil ditambahkan!`);
+    showToast(`Adegan ${currentProject.scenes.length + 1} berhasil ditambahkan!`);
   };
 
   const handleUpdateScene = (updatedScene: Scene) => {
@@ -514,7 +395,7 @@ export default function App() {
     showToast(`Adegan ${index + 1} telah dihapus.`);
   };
 
-  // AI Single Scene Polish - Bulletproof with Top Creator formula fallback
+  // AI Single Scene Polish
   const handleEnhanceSceneAI = async (scene: Scene) => {
     setEnhancingSceneId(scene.id);
     try {
@@ -524,7 +405,7 @@ export default function App() {
         body: JSON.stringify({
           scene,
           category: activeCategory.name,
-          instruction: 'Tingkatkan agar lebih viral, hook lebih tajam, dan aksi visual lebih ekspresif sesuai standar Google Flow & Top Creator',
+          instruction: 'Tingkatkan agar lebih viral, hook lebih tajam, dan aksi visual lebih ekspresif',
         }),
       });
       const rawText = await res.text();
@@ -543,45 +424,11 @@ export default function App() {
         });
         showToast('✨ Adegan berhasil dipercantik dengan AI!');
       } else {
-        // High-Conversion Top Creator fallback polish engine (Never fails)
-        const polishedAction = scene.visualAction
-          ? `${scene.visualAction} (Pencahayaan dramatis, kreator menunjukkan tekstur produk secara close-up dengan ekspresi memukau).`
-          : 'Kreator memegang produk di depan kamera dengan gestur ekspresif dan antusias.';
-        const polishedPopup = scene.popupText
-          ? `${scene.popupText.toUpperCase()} 🔥`
-          : 'WAJIB COBA! 😱';
-        const polishedSFX = scene.soundEffect
-          ? `${scene.soundEffect} + Cinematic Boom`
-          : 'Whoosh + Ding Bass';
-        const polishedVO = scene.dialogVO
-          ? `${scene.dialogVO}! Seriusan kalian harus cobain sebelum kehabisan.`
-          : 'Jujur ini produk paling viral yang pernah aku coba!';
-
-        handleUpdateScene({
-          ...scene,
-          visualAction: polishedAction,
-          popupText: polishedPopup,
-          soundEffect: polishedSFX,
-          dialogVO: polishedVO,
-          flowSecretCode: scene.flowSecretCode || '/dollyin',
-          cameraMovement: scene.cameraMovement || 'Smooth cinematic push-in',
-        });
-        showToast('✨ Adegan berhasil dipercantik dengan Formula Top Creator!');
+        showToast('Gagal memoles adegan');
       }
     } catch (e) {
       console.error('Enhance scene error:', e);
-      // Fallback on network glitch
-      const polishedAction = scene.visualAction
-        ? `${scene.visualAction} (Pencahayaan sinematik dengan gestur interaktif).`
-        : 'Kreator mendemokan keunggulan produk secara close-up.';
-      handleUpdateScene({
-        ...scene,
-        visualAction: polishedAction,
-        popupText: scene.popupText ? `${scene.popupText} ✨` : 'HASIL NYATA! 🔥',
-        soundEffect: scene.soundEffect || 'Pop Whoosh',
-        flowSecretCode: scene.flowSecretCode || '/orbit360',
-      });
-      showToast('✨ Adegan dipercantik dengan preset Top Creator!');
+      showToast('Gagal memproses AI enhance');
     } finally {
       setEnhancingSceneId(null);
     }
@@ -605,25 +452,17 @@ export default function App() {
       }
 
       if (resData.success && resData.data) {
-        const rawScenes = resData.data.scenes || [];
-        const genScenes: Scene[] = rawScenes.map((sc: any, i: number) => {
-          const defaultCode = i === 0 ? '/dollyin' : i === rawScenes.length - 1 ? '/dollyout' : '/orbit360';
-          const movement = sc.cameraMovement || sc.cameraAngle || 'Smooth cinematic movement';
-          return {
-            id: generateId(),
-            order: i + 1,
-            cameraAngle: sc.cameraAngle || 'Medium Shot',
-            flowSecretCode: sc.flowSecretCode || defaultCode,
-            cameraMovement: movement,
-            flowPrompt: sc.flowPrompt || '',
-            visualAction: sc.visualAction || '',
-            popupText: sc.popupText || '',
-            soundEffect: sc.soundEffect || '',
-            dialogVO: sc.dialogVO || '',
-            notesMood: sc.notesMood || '',
-            duration: Number(sc.duration) || 3,
-          };
-        });
+        const genScenes: Scene[] = (resData.data.scenes || []).map((sc: any, i: number) => ({
+          id: generateId(),
+          order: i + 1,
+          cameraAngle: sc.cameraAngle || 'Medium Shot',
+          visualAction: sc.visualAction || '',
+          popupText: sc.popupText || '',
+          soundEffect: sc.soundEffect || '',
+          dialogVO: sc.dialogVO || '',
+          notesMood: sc.notesMood || '',
+          duration: Number(sc.duration) || 3,
+        }));
 
         const matchedCat =
           UGC_CATEGORIES.find(
@@ -637,21 +476,11 @@ export default function App() {
           title: resData.data.title || `Storyboard ${params.category} - ${params.productName}`,
           categoryId: matchedCat.id,
           productName: params.productName,
-          productLinkOrNotes: params.productLinkOrNotes,
           targetAudience: params.targetAudience,
-          productImageUrl: params.productImage,
-          cameraStyle: params.cameraStyle,
-          visualFraming: params.visualFraming,
-          marketingFramework: params.marketingFramework,
-          hookStrategy: params.hookStrategy,
-          ctaPreset: params.ctaPreset,
           caption: resData.data.caption || `Cobain ${params.productName}! Hasil nyata bikin makin pede. Cek keranjang kuning sekarang! ✨ #RacunTikTok #fyp #TikTokShop`.slice(0, 150),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          scenes: genScenes.map((sc) => ({
-            ...sc,
-            imageUrl: sc.imageUrl || params.productImage,
-          })),
+          scenes: genScenes,
         };
 
         setProjects((prev) => [newProj, ...prev]);
@@ -716,46 +545,27 @@ export default function App() {
     }
   };
 
-  // Generate / Regenerate fresh caption under 150 chars with Top Creator & FYP Research
+  // Generate / Regenerate fresh caption under 150 chars
   const handleGenerateNewCaption = async () => {
     setIsGeneratingCaption(true);
     try {
-      const hookScene = currentProject.scenes[0];
-      const ctaScene = currentProject.scenes[currentProject.scenes.length - 1];
-
       const res = await fetch('/api/generate-caption', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productName: currentProject.productName || currentProject.title || 'Produk Unggulan',
+          productName: currentProject.productName || 'Produk Unggulan',
           category: activeCategory.name,
           targetAudience: currentProject.targetAudience || '',
-          productLinkOrNotes: currentProject.productLinkOrNotes || '',
-          hookDialogue: hookScene?.dialogVO || '',
-          ctaDialogue: ctaScene?.dialogVO || '',
         }),
       });
       const data = await res.json();
       if (data.success && data.caption) {
         updateCurrentProject((p) => ({ ...p, caption: data.caption }));
-        showToast('✨ Caption Top Creator FYP berhasil dibuat!');
-      } else {
-        const prod = currentProject.productName || 'ini';
-        const topCreatorCaptions = [
-          `Gak nyangka ${prod} sebagus ini! Beneran game changer, cek keranjang kuning mumpung promo ✨ #fyp #RacunTikTok #ViralID`,
-          `Pantesan ${prod} sliweran terus di FYP! Pas dicoba emang se-worth it itu 🔥 Cek keranjang kuning yuk! #fyp #RacunTikTok #TikTokShop`,
-          `Nyesel baru tau ${prod} sekarang! Hasilnya nyata banget, auto checkout lagi deh ✨ #fyp #RacunTikTok #SpillProduk`,
-        ];
-        const randomFypCaption = topCreatorCaptions[Math.floor(Math.random() * topCreatorCaptions.length)];
-        updateCurrentProject((p) => ({ ...p, caption: randomFypCaption }));
-        showToast('✨ Caption Top Creator FYP berhasil dibuat!');
+        showToast('✨ Caption viral baru berhasil dibuat!');
       }
     } catch (e) {
       console.error('Caption generate error:', e);
-      const prod = currentProject.productName || 'ini';
-      const fallbackCaption = `Beneran deh ${prod} worth it parah! Cek keranjang kuning sebelum kehabisan ya ✨ #fyp #RacunTikTok #TikTokShop`;
-      updateCurrentProject((p) => ({ ...p, caption: fallbackCaption }));
-      showToast('✨ Caption Top Creator FYP diterapkan!');
+      showToast('Gagal membuat caption');
     } finally {
       setIsGeneratingCaption(false);
     }
@@ -823,52 +633,6 @@ export default function App() {
       setCurrentProjectId(remaining[0].id);
     }
     showToast('Project telah dihapus.');
-  };
-
-  // Full Backup Export
-  const handleExportBackup = () => {
-    try {
-      const backupPayload = {
-        snapshotVersion: '2026-09-05T06:36:29.989941Z',
-        exportedAt: new Date().toISOString(),
-        currentProjectId: currentProject.id,
-        projects: projects,
-      };
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupPayload, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', dataStr);
-      downloadAnchor.setAttribute('download', `ugc-studio-backup-${new Date().toISOString().slice(0, 10)}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      showToast('File backup JSON berhasil diunduh! 💾');
-    } catch (err) {
-      showToast('Gagal mengekspor file backup JSON');
-    }
-  };
-
-  // Backup Import
-  const handleImportBackup = (imported: StoryboardProject[]) => {
-    if (!imported || imported.length === 0) return;
-    setProjects(imported);
-    setCurrentProjectId(imported[0].id);
-    saveProjectsToLocalStorage(imported, imported[0].id);
-    showToast(`Berhasil memulihkan ${imported.length} project! 🎉`);
-  };
-
-  // Restore Snapshot from 2026-09-05T06:36:29.989941Z
-  const handleRestoreSnapshot20260905 = () => {
-    const pristineProject: StoryboardProject = {
-      ...INITIAL_BEFORE_AFTER_PROJECT,
-      id: 'proj_before_after_sago_' + Date.now(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const updatedList = [pristineProject];
-    setProjects(updatedList);
-    setCurrentProjectId(pristineProject.id);
-    saveProjectsToLocalStorage(updatedList, pristineProject.id);
-    showToast('Berhasil dipulihkan ke Snapshot 2026-09-05 (Sago Green Coffee)! 🔄');
   };
 
   // Shot List Update Handler
@@ -953,11 +717,6 @@ export default function App() {
 
   const totalDuration = currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0);
 
-  // Security Gate: require password Ilalang@27 on first open
-  if (!isAppUnlocked) {
-    return <PasswordGate onUnlock={handleUnlockApp} />;
-  }
-
   return (
     <div className="min-h-screen bg-[#070a12] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       
@@ -966,7 +725,6 @@ export default function App() {
         title={currentProject.title}
         categoryName={activeCategory.name}
         categoryBadge={activeCategory.badgeText}
-        visualFraming={currentProject.visualFraming}
         scenes={currentProject.scenes}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -975,15 +733,10 @@ export default function App() {
         onOpenHooksModal={() => setIsHooksModalOpen(true)}
         onOpenTeleprompter={() => setIsTeleprompterOpen(true)}
         onOpenExportModal={() => handleOpenExportWithTab('table')}
-        onOpenVideoModal={() => setIsVideoModalOpen(true)}
         onOpenProjectsModal={() => setIsProjectsModalOpen(true)}
         onAddScene={handleAddScene}
         onCopyJSON={handleCopyJSON}
         isJsonCopied={isJsonCopied}
-        googleUser={googleUser}
-        onGoogleLogin={handleGoogleLogin}
-        onGoogleLogout={handleGoogleLogout}
-        onLockApp={handleLockApp}
       />
 
       {/* Main Workspace Layout */}
@@ -1000,9 +753,9 @@ export default function App() {
           onCreateNewProject={handleCreateNewProject}
         />
 
-        {/* Main Content Area: Storyboard Editor Modes */}
+        {/* Main Content Area */}
         <main className="flex-1 bg-[#070a12] overflow-y-auto p-4 md:p-6 lg:p-7 custom-scrollbar">
-            <div className="max-w-6xl mx-auto space-y-5">
+          <div className="max-w-6xl mx-auto space-y-5">
             
             {/* Context Bar: Current Format, Summary & Quick Triggers */}
             <div className="bg-[#0e1320] border border-[#1b253b] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
@@ -1018,14 +771,6 @@ export default function App() {
                     <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-600/40 px-2 py-0.5 rounded-full font-bold uppercase">
                       {activeCategory.badgeText}
                     </span>
-                    {currentProject.visualFraming && (
-                      <span className="text-[10px] bg-indigo-950/90 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                        {currentProject.visualFraming === 'hands_pov' && '🖐️ Hanya Tangan (POV)'}
-                        {currentProject.visualFraming === 'face_closeup' && '👤 Wajah & Ekspresi'}
-                        {currentProject.visualFraming === 'full_body' && '🧍 Full Body'}
-                        {currentProject.visualFraming === 'mix_framing' && '🔀 Mix Framing'}
-                      </span>
-                    )}
                     <span className="text-[11px] text-emerald-400 font-mono font-bold bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-md">
                       {totalDuration} Detik • {currentProject.scenes.length} Adegan
                     </span>
@@ -1074,24 +819,6 @@ export default function App() {
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
                   <span>Pilih 5 Hook Viral</span>
-                </button>
-
-                <button
-                  onClick={() => setIsVideoModalOpen(true)}
-                  className="flex items-center gap-1.5 bg-[#141b2c] hover:bg-purple-900/40 text-purple-300 hover:text-purple-100 text-xs font-semibold px-3 py-1.5 rounded-xl border border-purple-500/40 transition-all shadow-sm active:scale-95"
-                  title="Pratinjau & Render video utuh MP4 menggunakan FFmpeg di browser"
-                >
-                  <Film className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Preview Video (MP4)</span>
-                </button>
-
-                <button
-                  onClick={() => handleOpenExportWithTab('flow')}
-                  className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 text-cyan-200 hover:text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-cyan-500/50 shadow-sm transition-all active:scale-95"
-                  title="Buka Google Flow AI Secret Codes & Prompt Generator Video Lengkap"
-                >
-                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Flow AI Prompts</span>
                 </button>
 
                 <button
@@ -1258,25 +985,12 @@ export default function App() {
               />
             )}
 
-            {/* VIEW MODE 3: 9:16 Smartphone Simulator with TikTok Safe Zone & Google Flow */}
+            {/* VIEW MODE 3: 9:16 Smartphone Simulator with TikTok Safe Zone */}
             {viewMode === 'phone_preview' && (
               <PhoneSimulator
                 scenes={currentProject.scenes}
                 title={currentProject.title}
                 categoryName={activeCategory.name}
-                productImageUrl={currentProject.productImageUrl}
-                onUpdateProductImage={(newUrl) => {
-                  updateCurrentProject((p) => ({
-                    ...p,
-                    productImageUrl: newUrl || undefined,
-                    scenes: p.scenes.map((sc) => ({
-                      ...sc,
-                      imageUrl: sc.imageUrl || newUrl || undefined,
-                    })),
-                  }));
-                  showToast('Gambar referensi produk berhasil diperbarui! 📸');
-                }}
-                onOpenVideoExport={() => setIsVideoModalOpen(true)}
                 onSelectScene={(idx) => {
                   setViewMode('cards');
                   setTimeout(() => {
@@ -1322,14 +1036,10 @@ export default function App() {
       {/* MODALS */}
       <AIGeneratorModal
         isOpen={isAIGeneratorOpen}
-        onClose={() => {
-          setIsAIGeneratorOpen(false);
-          setAiModalInitialParams(null);
-        }}
+        onClose={() => setIsAIGeneratorOpen(false)}
         currentCategoryName={activeCategory.name}
         onGenerate={handleGenerateStoryboard}
         isGenerating={isGeneratingAI}
-        initialParams={aiModalInitialParams}
       />
 
       <HookGeneratorModal
@@ -1357,33 +1067,6 @@ export default function App() {
         hookVariants={currentProject.hookVariants}
         initialTab={exportModalInitialTab}
         onImportJSON={handleImportJSON}
-        onOpenVideoModal={() => setIsVideoModalOpen(true)}
-        googleUser={googleUser}
-        googleAccessToken={googleAccessToken}
-        onGoogleLogin={handleGoogleLogin}
-      />
-
-      <VideoExportModal
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-        scenes={currentProject.scenes}
-        title={currentProject.title}
-        categoryName={activeCategory.name}
-        productImageUrl={currentProject.productImageUrl}
-        googleUser={googleUser}
-        googleAccessToken={googleAccessToken}
-        onGoogleLogin={handleGoogleLogin}
-        onUpdateProductImage={(newUrl) => {
-          updateCurrentProject((p) => ({
-            ...p,
-            productImageUrl: newUrl || undefined,
-            scenes: p.scenes.map((sc) => ({
-              ...sc,
-              imageUrl: sc.imageUrl || newUrl || undefined,
-            })),
-          }));
-          showToast('Foto referensi produk berhasil diperbarui! 📸');
-        }}
       />
 
       <ProjectManagerModal
@@ -1395,17 +1078,6 @@ export default function App() {
         onCreateNewProject={handleCreateNewProject}
         onDuplicateProject={handleDuplicateProject}
         onDeleteProject={handleDeleteProject}
-        onExportBackup={handleExportBackup}
-        onImportBackup={handleImportBackup}
-        onRestoreSnapshot20260905={handleRestoreSnapshot20260905}
-        onUpdateProjectNotes={(projectId, notes) => {
-          const updated = projects.map((p) =>
-            p.id === projectId ? { ...p, productLinkOrNotes: notes, updatedAt: new Date().toISOString() } : p
-          );
-          setProjects(updated);
-          saveProjectsToLocalStorage(updated, currentProjectId);
-          showToast('Keterangan & link produk berhasil disimpan di Project Manager! 💾');
-        }}
       />
 
     </div>

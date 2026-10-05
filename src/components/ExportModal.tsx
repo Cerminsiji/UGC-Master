@@ -13,15 +13,10 @@ import {
   Loader2,
   AlertCircle,
   Video,
-  Film,
-  Cloud,
-  ExternalLink,
-  Zap
+  Film
 } from 'lucide-react';
-import { Scene, HookVariant, GoogleUserProfile, StoryboardProject } from '../types';
-import { copyToClipboard, formatDuration, sanitizeStoryboardForJSON } from '../utils/helpers';
-import { uploadProjectToDrive, DriveUploadResult } from '../services/googleDrive';
-import { constructGoogleFlowPrompt } from '../data/flowSecretCodes';
+import { Scene, HookVariant } from '../types';
+import { copyToClipboard, formatDuration } from '../utils/helpers';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -31,12 +26,8 @@ interface ExportModalProps {
   caption?: string;
   scenes: Scene[];
   hookVariants?: HookVariant[];
-  initialTab?: 'table' | 'flow' | 'caption' | 'script' | 'capcut' | 'json';
+  initialTab?: 'table' | 'caption' | 'script' | 'capcut' | 'json';
   onImportJSON: (importedScenes: Scene[], importedTitle?: string) => void;
-  onOpenVideoModal?: () => void;
-  googleUser?: GoogleUserProfile | null;
-  googleAccessToken?: string | null;
-  onGoogleLogin?: () => Promise<void> | void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -49,57 +40,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   hookVariants,
   initialTab = 'table',
   onImportJSON,
-  onOpenVideoModal,
-  googleUser,
-  googleAccessToken,
-  onGoogleLogin,
 }) => {
-  const [activeTab, setActiveTab] = useState<'table' | 'flow' | 'caption' | 'script' | 'capcut' | 'json'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'table' | 'caption' | 'script' | 'capcut' | 'json'>(initialTab);
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [caption, setCaption] = useState(initialCaption || '');
   const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  // Google Drive project save
-  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
-  const [driveSaveResult, setDriveSaveResult] = useState<DriveUploadResult | null>(null);
-  const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
-
-  const handleSaveProjectToDrive = async () => {
-    if (!googleUser || !googleAccessToken) {
-      if (onGoogleLogin) await onGoogleLogin();
-      return;
-    }
-
-    setIsSavingToDrive(true);
-    setDriveSaveError(null);
-
-    const projectPayload: StoryboardProject = {
-      id: `proj_${Date.now()}`,
-      title,
-      categoryId: categoryName.toLowerCase().replace(/\s+/g, '-'),
-      productName: title,
-      targetAudience: 'Target Audience UGC',
-      caption,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      scenes,
-      hookVariants,
-    };
-
-    try {
-      const result = await uploadProjectToDrive({
-        project: projectPayload,
-        accessToken: googleAccessToken,
-      });
-      setDriveSaveResult(result);
-    } catch (err: any) {
-      console.error('Save project to drive error:', err);
-      setDriveSaveError(err.message || 'Gagal menyimpan naskah ke Google Drive.');
-    } finally {
-      setIsSavingToDrive(false);
-    }
-  };
 
   useEffect(() => {
     if (initialTab) {
@@ -166,42 +112,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     return output;
   };
 
-  // Generate Google Flow AI hidden prompts text
-  const getFlowPromptsText = () => {
-    let output = `⚡ GOOGLE FLOW AI SECRET CODES & CINEMATIC PROMPTS: ${title.toUpperCase()}\n`;
-    output += `Kategori: ${categoryName} | Total Adegan: ${scenes.length} | Durasi Total: ${formatDuration(totalDuration)}\n`;
-    output += `Platform Video AI: Google Flow / Veo / Kling AI / OpenAI Sora / Runway Gen-3\n`;
-    output += `Panduan: Salin prompt tiap adegan ke video generator AI Anda untuk menjaga konsistensi visual dan pergerakan kamera tanpa distorsi.\n\n`;
-    output += `========================================================\n\n`;
-
-    scenes.forEach((sc, i) => {
-      const code = sc.flowSecretCode || (i === 0 ? '/dollyin' : i === scenes.length - 1 ? '/dollyout' : '/orbit360');
-      const movement = sc.cameraMovement || sc.cameraAngle || 'Smooth cinematic movement';
-      const prompt = sc.flowPrompt || constructGoogleFlowPrompt({
-        ...sc,
-        flowSecretCode: code,
-        cameraMovement: movement
-      }, title);
-
-      output += `[ADEGAN ${i + 1} - ${sc.duration}s | Code: ${code}]\n`;
-      output += `Gerakan Kamera: ${movement}\n`;
-      output += `Aksi Visual: ${sc.visualAction}\n`;
-      output += `PROMPT FLOW:\n${prompt}\n\n`;
-    });
-
-    return output;
-  };
-
-  const handleDownloadFlowPrompts = () => {
-    const dataStr = 'data:text/plain;charset=utf-8,' + encodeURIComponent(getFlowPromptsText());
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${title.toLowerCase().replace(/\s+/g, '_')}_flow_prompts.txt`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
   const handleCopyText = async (text: string, type: string) => {
     const ok = await copyToClipboard(text);
     if (ok) {
@@ -211,16 +121,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const getFullStoryboardJSON = () => {
-    const rawData = {
-      title,
-      category: categoryName,
-      totalDuration,
-      caption,
-      hookVariants,
-      scenes,
-      exportedAt: new Date().toISOString(),
-    };
-    return JSON.stringify(sanitizeStoryboardForJSON(rawData), null, 2);
+    return JSON.stringify(
+      {
+        title,
+        category: categoryName,
+        totalDuration,
+        caption,
+        hookVariants,
+        scenes,
+        exportedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    );
   };
 
   const handleDownloadJSON = () => {
@@ -330,21 +243,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveTab('flow')}
-            className={`px-4 py-2 text-xs font-bold rounded-t-xl transition-colors flex items-center gap-1.5 border-b-2 whitespace-nowrap ${
-              activeTab === 'flow'
-                ? 'text-cyan-400 border-cyan-500 bg-[#161f31]'
-                : 'text-slate-400 border-transparent hover:text-slate-200'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Google Flow Prompts</span>
-            <span className="text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 px-1.5 py-0.2 rounded font-mono font-bold">
-              AI Video
-            </span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('capcut')}
             className={`px-4 py-2 text-xs font-bold rounded-t-xl transition-colors flex items-center gap-1.5 border-b-2 whitespace-nowrap ${
               activeTab === 'capcut'
@@ -394,20 +292,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               Salin / Unduh
             </span>
           </button>
-
-          {onOpenVideoModal && (
-            <button
-              onClick={() => {
-                onClose();
-                onOpenVideoModal();
-              }}
-              className="ml-auto flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-purple-950/50 transition-all active:scale-95 whitespace-nowrap mb-1"
-              title="Render storyboard menjadi video MP4 dengan FFmpeg"
-            >
-              <Film className="w-3.5 h-3.5" />
-              <span>Export Video MP4 (FFmpeg)</span>
-            </button>
-          )}
         </div>
 
         {/* Tab Content */}
@@ -495,142 +379,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: GOOGLE FLOW AI SECRET CODES & PROMPTS */}
-          {activeTab === 'flow' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/60 via-[#111928] to-[#121a2c] border border-cyan-500/40 shadow-lg">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-md">
-                    <Zap className="w-4 h-4" />
-                  </span>
-                  <div>
-                    <span className="text-xs font-bold text-cyan-200 block">
-                      Google Flow AI Secret Codes & Cinematic Video Prompts
-                    </span>
-                    <span className="text-[11px] text-slate-300">
-                      Format prompt pergerakan kamera ultra sinematik siap tempel ke Google Flow, Veo, Sora, Kling AI, dan Runway Gen-3.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-                  <button
-                    onClick={handleDownloadFlowPrompts}
-                    className="flex items-center gap-1.5 bg-[#142036] hover:bg-[#1a2b4a] text-cyan-300 border border-cyan-700/50 text-xs font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95"
-                    title="Unduh seluruh prompt dalam format text .txt"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download .txt</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleCopyText(getFlowPromptsText(), 'flow_all')}
-                    className="flex items-center gap-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-md transition-all active:scale-95"
-                  >
-                    {copiedType === 'flow_all' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Semua Prompt Tersalin!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Salin Semua Prompt Flow</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Individual Scene Flow Prompt Cards */}
-              <div className="grid grid-cols-1 gap-3">
-                {scenes.map((sc, i) => {
-                  const code = sc.flowSecretCode || (i === 0 ? '/dollyin' : i === scenes.length - 1 ? '/dollyout' : '/orbit360');
-                  const movement = sc.cameraMovement || sc.cameraAngle || 'Smooth cinematic movement';
-                  const prompt = sc.flowPrompt || constructGoogleFlowPrompt({
-                    ...sc,
-                    flowSecretCode: code,
-                    cameraMovement: movement
-                  }, title);
-                  const isCopied = copiedType === `flow_sc_${i}`;
-
-                  return (
-                    <div
-                      key={sc.id || i}
-                      className="p-3.5 rounded-xl bg-[#0e1422] border border-[#202c44] hover:border-cyan-600/50 transition-all space-y-2 group"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-white px-2 py-0.5 rounded bg-[#162136] border border-slate-700">
-                            Adegan {i + 1}
-                          </span>
-                          <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60">
-                            {code}
-                          </span>
-                          <span className="text-[11px] text-slate-300 font-medium">
-                            {movement}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            • {sc.duration} detik
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(prompt, `flow_sc_${i}`)}
-                          className={`text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all self-end sm:self-auto ${
-                            isCopied
-                              ? 'bg-emerald-500 text-black shadow'
-                              : 'bg-[#152033] hover:bg-cyan-950/70 text-cyan-300 border border-cyan-800/50 hover:border-cyan-500'
-                          }`}
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3 h-3" />
-                              <span>Tersalin!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Salin Prompt Adegan {i + 1}</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <p className="text-[11px] text-slate-400">
-                        <strong className="text-slate-300">Visual:</strong> {sc.visualAction}
-                      </p>
-
-                      <div className="p-2.5 rounded-lg bg-[#070b12] border border-cyan-950 text-xs font-mono text-cyan-200 leading-relaxed break-words select-all">
-                        {prompt}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Full Raw Output Container */}
-              <div className="space-y-1.5 pt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Raw Batch Prompts (Semua Adegan Sekaligus):
-                  </span>
-                  <button
-                    onClick={() => handleCopyText(getFlowPromptsText(), 'flow_raw')}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>{copiedType === 'flow_raw' ? 'Tersalin!' : 'Salin Raw'}</span>
-                  </button>
-                </div>
-                <pre className="p-3.5 rounded-xl bg-[#080c14] border border-[#1d273e] text-xs font-mono text-cyan-300 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
-                  {getFlowPromptsText()}
-                </pre>
               </div>
             </div>
           )}
@@ -772,16 +520,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-200 block">
-                      Data Struktur JSON Storyboard
-                    </span>
-                    <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded-full font-semibold">
-                      ✨ Tanpa Data Image (Google Flow Ready)
-                    </span>
-                  </div>
+                  <span className="text-xs font-bold text-slate-200 block">
+                    Data Struktur JSON Storyboard
+                  </span>
                   <span className="text-[11px] text-slate-400">
-                    Format ringan tanpa base64/url image, siap di-upload & diproses pada Google Flow atau automasi lainnya.
+                    Format lengkap untuk integrasi AI, generator, backup, atau import ke project lain.
                   </span>
                 </div>
 
@@ -807,7 +550,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   </button>
 
                   <button
-                    onClick={() => handleCopyText(JSON.stringify(sanitizeStoryboardForJSON(scenes), null, 2), 'scenes_only')}
+                    onClick={() => handleCopyText(JSON.stringify(scenes, null, 2), 'scenes_only')}
                     className="flex items-center gap-1 bg-[#182133] hover:bg-[#202c42] text-purple-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-purple-800/40 transition-all active:scale-95"
                     title="Hanya salin array daftar adegan"
                   >
@@ -820,25 +563,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       <>
                         <Copy className="w-3.5 h-3.5" />
                         <span>Salin Array Adegan</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={handleSaveProjectToDrive}
-                    disabled={isSavingToDrive}
-                    className="flex items-center gap-1.5 bg-[#142038] hover:bg-sky-950/70 text-sky-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-sky-600/40 shadow-sm transition-all active:scale-95 disabled:opacity-50"
-                    title="Simpan backup naskah dan adegan langsung ke folder UGC Storyboard Hub di Google Drive"
-                  >
-                    {isSavingToDrive ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
-                        <span>Menyimpan...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Cloud className="w-3.5 h-3.5 text-sky-400" />
-                        <span>Simpan ke Google Drive</span>
                       </>
                     )}
                   </button>
@@ -867,33 +591,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                   <span>{uploadError}</span>
-                </div>
-              )}
-
-              {driveSaveResult && (
-                <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between gap-2 text-xs text-emerald-200 animate-fadeIn">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Naskah berhasil disimpan ke Google Drive (UGC Storyboard Hub)!</span>
-                  </div>
-                  {driveSaveResult.webViewLink && (
-                    <a
-                      href={driveSaveResult.webViewLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-bold text-emerald-300 hover:text-white underline flex items-center gap-1"
-                    >
-                      <span>Buka File</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {driveSaveError && (
-                <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2 text-rose-300 text-xs">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span>{driveSaveError}</span>
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   X,
@@ -17,33 +17,10 @@ import {
   RefreshCw,
   Tag,
   CheckCircle2,
-  AlertCircle,
-  Upload,
-  Image as ImageIcon,
-  Trash2,
-  Camera,
-  Video,
-  Eye,
-  SlidersHorizontal,
-  TrendingUp,
-  ShoppingBag,
-  ShieldCheck,
-  ChevronDown,
-  ChevronUp,
-  Award
+  AlertCircle
 } from 'lucide-react';
-import {
-  UGC_CATEGORIES,
-  CAMERA_STYLE_OPTIONS,
-  getRecommendedCameraStyle,
-  MARKETING_FRAMEWORKS,
-  HOOK_STRATEGY_OPTIONS,
-  CTA_PRESETS,
-  VISUAL_FRAMING_OPTIONS,
-  VisualFramingOption
-} from '../data/categories';
-import { AIGenerateParams, AutoDetectResult, VisualFramingType } from '../types';
-import { compressImageFile } from '../utils/helpers';
+import { UGC_CATEGORIES } from '../data/categories';
+import { AIGenerateParams, AutoDetectResult } from '../types';
 
 interface AIGeneratorModalProps {
   isOpen: boolean;
@@ -51,7 +28,6 @@ interface AIGeneratorModalProps {
   currentCategoryName: string;
   onGenerate: (params: AIGenerateParams) => Promise<void>;
   isGenerating: boolean;
-  initialParams?: Partial<AIGenerateParams> | null;
 }
 
 export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
@@ -60,7 +36,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
   currentCategoryName,
   onGenerate,
   isGenerating,
-  initialParams,
 }) => {
   // Input states
   const [category, setCategory] = useState(currentCategoryName || 'Before & After');
@@ -69,71 +44,10 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
   const [targetAudience, setTargetAudience] = useState('Pria dan wanita usia 22-45 tahun yang ingin badan lebih ramping tanpa diet menyiksa.');
   const [keySellingPoints, setKeySellingPoints] = useState('Rasa enak gak pahit, bikin kenyang lebih lama, aman lambung, BPOM & Halal.');
   const [tone, setTone] = useState('Santai, Relatable & Meyakinkan');
-  const [cameraStyle, setCameraStyle] = useState<string>('Kombinasi Dinamis (Rekomendasi AI Otomatis)');
-  const [visualFraming, setVisualFraming] = useState<VisualFramingType>('mix_framing');
-  const [customCameraStyle, setCustomCameraStyle] = useState<string>('');
-  const [isCustomCamera, setIsCustomCamera] = useState<boolean>(false);
-  const [aiCameraReason, setAiCameraReason] = useState<string | null>(null);
   const [targetDuration, setTargetDuration] = useState(30);
   const [targetSceneCount, setTargetSceneCount] = useState<number>(0); // 0 = Auto, or 3, 4, 5, 6, 7, 8, 9
   const [targetPlatform, setTargetPlatform] = useState('TikTok Shop');
   const [language, setLanguage] = useState<'id' | 'en'>('id');
-  const [productImage, setProductImage] = useState<string | undefined>(undefined);
-
-  // Sync initialParams whenever provided or modal opens
-  useEffect(() => {
-    if (initialParams && isOpen) {
-      if (initialParams.productName) setProductName(initialParams.productName);
-      if (initialParams.productDescription) setProductDescription(initialParams.productDescription);
-      if (initialParams.category) setCategory(initialParams.category);
-      if (initialParams.targetAudience) setTargetAudience(initialParams.targetAudience);
-      if (initialParams.keySellingPoints) setKeySellingPoints(initialParams.keySellingPoints);
-      if (initialParams.visualFraming) setVisualFraming(initialParams.visualFraming);
-      if (initialParams.productImage) setProductImage(initialParams.productImage);
-      if (initialParams.tone) setTone(initialParams.tone);
-      if (initialParams.targetPlatform) setTargetPlatform(initialParams.targetPlatform);
-      if (initialParams.marketingFramework) setMarketingFramework(initialParams.marketingFramework);
-      if (initialParams.hookStrategy) setHookStrategy(initialParams.hookStrategy);
-      if (initialParams.ctaPreset) setCtaPreset(initialParams.ctaPreset);
-      if (initialParams.productLinkOrNotes) setSmartInput(initialParams.productLinkOrNotes);
-    }
-  }, [initialParams, isOpen]);
-
-  // Conversion & Marketing Optimization states
-  const [marketingFramework, setMarketingFramework] = useState<string>('aida');
-  const [hookStrategy, setHookStrategy] = useState<string>('curiosity_gap');
-  const [ctaPreset, setCtaPreset] = useState<string>('Keranjang Kuning + Diskon Terbatas');
-  const [showAdvancedConversion, setShowAdvancedConversion] = useState<boolean>(true);
-
-  // Dynamic AI recommendation based on current category
-  const recommendedCameraInfo = getRecommendedCameraStyle(category);
-  const matchedCameraPreset = CAMERA_STYLE_OPTIONS.find(
-    (s) => s.name.toLowerCase() === recommendedCameraInfo.styleName.toLowerCase()
-  ) || CAMERA_STYLE_OPTIONS[0];
-
-  const handleProductPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Mohon pilih file gambar (JPG, PNG, atau WebP).');
-      return;
-    }
-    try {
-      const compressedDataUrl = await compressImageFile(file, 1200, 0.85);
-      if (compressedDataUrl) {
-        setProductImage(compressedDataUrl);
-      }
-    } catch {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setProductImage(result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   // Sync category when modal opens or active category changes
   React.useEffect(() => {
@@ -218,15 +132,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
       if (detected.tone) setTone(detected.tone);
       if (detected.targetPlatform) setTargetPlatform(detected.targetPlatform);
       if (detected.targetDuration) setTargetDuration(detected.targetDuration);
-      if (detected.cameraStyle) {
-        setCameraStyle(detected.cameraStyle);
-        if (detected.cameraStyleReason) {
-          setAiCameraReason(detected.cameraStyleReason);
-        }
-      }
-      if (detected.visualFraming) {
-        setVisualFraming(detected.visualFraming as VisualFramingType);
-      }
       if (detected.detectedTags && Array.isArray(detected.detectedTags)) {
         setDetectTags(detected.detectedTags);
       }
@@ -243,8 +148,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
             c.id.toLowerCase() === detected.category?.toLowerCase()
         );
         const resolvedCategory = catMatch ? catMatch.name : (detected.category || category);
-        const resolvedCameraStyle = detected.cameraStyle || cameraStyle;
-        const resolvedVisualFraming = (detected.visualFraming as VisualFramingType) || visualFraming;
 
         await onGenerate({
           category: resolvedCategory,
@@ -253,17 +156,10 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
           targetAudience: (detected.targetAudience || '').trim(),
           keySellingPoints: (detected.keySellingPoints || '').trim(),
           tone: detected.tone || tone,
-          cameraStyle: resolvedCameraStyle,
-          visualFraming: resolvedVisualFraming,
-          marketingFramework,
-          hookStrategy,
-          ctaPreset,
           targetDuration: detected.targetDuration || targetDuration,
           targetSceneCount: targetSceneCount > 0 ? targetSceneCount : undefined,
           targetPlatform: detected.targetPlatform || targetPlatform,
-          productLinkOrNotes: trimmedInput || smartInput.trim(),
           language,
-          productImage,
         });
       }
     } catch (err: any) {
@@ -303,10 +199,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
       return;
     }
 
-    const effectiveCameraStyle = isCustomCamera && customCameraStyle.trim()
-      ? customCameraStyle.trim()
-      : cameraStyle;
-
     await onGenerate({
       category,
       productName: productName.trim(),
@@ -314,17 +206,10 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
       targetAudience: targetAudience.trim(),
       keySellingPoints: keySellingPoints.trim(),
       tone,
-      cameraStyle: effectiveCameraStyle,
-      visualFraming,
-      marketingFramework,
-      hookStrategy,
-      ctaPreset,
       targetDuration,
       targetSceneCount: targetSceneCount > 0 ? targetSceneCount : undefined,
       targetPlatform,
-      productLinkOrNotes: smartInput.trim(),
       language,
-      productImage,
     });
   };
 
@@ -581,86 +466,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
               />
             </div>
 
-            {/* Referensi Foto Produk untuk Video Preview & Scene */}
-            <div className="p-3.5 rounded-xl bg-[#141b2c] border border-[#23304d] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    Referensi Foto Produk (Untuk Video Export MP4 & Adegan)
-                  </span>
-                </div>
-                {productImage && (
-                  <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded-full font-bold">
-                    ✓ Foto Terpasang
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {productImage ? (
-                  <div className="relative group shrink-0">
-                    <img
-                      src={productImage}
-                      alt="Referensi Produk"
-                      className="w-16 h-16 object-cover rounded-xl border border-purple-500/50 shadow-md"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setProductImage(undefined)}
-                      className="absolute -top-1.5 -right-1.5 p-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full shadow transition-all"
-                      title="Hapus foto"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-[#0e1422] border border-dashed border-[#293652] flex flex-col items-center justify-center text-slate-500 shrink-0">
-                    <Upload className="w-4 h-4 mb-0.5" />
-                    <span className="text-[9px]">Pilih Foto</span>
-                  </div>
-                )}
-
-                <div className="flex-1 space-y-1.5">
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Unggah foto produk nyata (JPG/PNG). Foto ini akan digunakan oleh FFmpeg untuk merender visual video preview dan kartu adegan.
-                  </p>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <label className="inline-flex items-center gap-1.5 bg-[#1a2338] hover:bg-[#232f4a] text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-[#2b3a59] cursor-pointer transition-all active:scale-95">
-                      <Upload className="w-3.5 h-3.5 text-purple-400" />
-                      <span>{productImage ? 'Ganti Foto' : 'Upload Foto Produk'}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleProductPhotoUpload}
-                        className="hidden"
-                      />
-                    </label>
-
-                    {!productImage && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setProductImage('https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800&auto=format&fit=crop&q=80')}
-                          className="text-[10px] bg-[#1a2338] hover:bg-purple-950 text-slate-300 hover:text-purple-200 border border-[#273552] px-2 py-1 rounded-md transition-all"
-                        >
-                          + Contoh Serum
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setProductImage('https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&auto=format&fit=crop&q=80')}
-                          className="text-[10px] bg-[#1a2338] hover:bg-purple-950 text-slate-300 hover:text-purple-200 border border-[#273552] px-2 py-1 rounded-md transition-all"
-                        >
-                          + Contoh Kopi
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Product Description & USP */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -731,384 +536,6 @@ export const AIGeneratorModal: React.FC<AIGeneratorModalProps> = ({
                   <option value="Tips & Trik Cepat Sat-Set (Solusi 3 Langkah)">Tips & Trik Cepat Sat-Set (Solusi 3 Langkah)</option>
                   <option value="Soft Selling ala Daily Vlog & GRWM">Soft Selling ala Daily Vlog & GRWM</option>
                 </select>
-              </div>
-            </div>
-
-            {/* Opsi Visual Framing & Sudut Pandang (UGC Framing & Anti-AI Mandate) */}
-            <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-b from-[#141b2e] to-[#0e1424] border border-[#233554] space-y-3.5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-950/90 border border-indigo-500/40 flex items-center justify-center text-indigo-300">
-                    <Eye className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                        Opsi Visual Framing & Sudut Pandang
-                      </span>
-                      <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-600/50 px-2 py-0.2 rounded-full font-bold">
-                        Fokus Visual Kreator
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      Tentukan fokus kamera dan kehadiran talent pada storyboard UGC Anda.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 self-start sm:self-center">
-                  <span className="text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-600/50 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" /> Konsistensi Google Flow & Anti-AI
-                  </span>
-                </div>
-              </div>
-
-              {/* 4 Interactive Framing Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {VISUAL_FRAMING_OPTIONS.map((opt) => {
-                  const isSelected = visualFraming === opt.id;
-                  return (
-                    <div
-                      key={opt.id}
-                      onClick={() => setVisualFraming(opt.id)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all text-left flex flex-col justify-between relative group ${
-                        isSelected
-                          ? 'bg-indigo-950/60 border-indigo-400 shadow-lg shadow-indigo-950/60 ring-1 ring-indigo-400/50'
-                          : 'bg-[#101728] border-[#1e2a44] hover:border-indigo-500/50 hover:bg-[#141d33]'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{opt.icon}</span>
-                            <span className="text-xs font-bold text-white group-hover:text-indigo-200 transition-colors">
-                              {opt.name}
-                            </span>
-                          </div>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap border ${
-                            isSelected
-                              ? 'bg-indigo-900/80 text-indigo-200 border-indigo-700/60'
-                              : 'bg-[#18233a] text-slate-400 border-[#263554]'
-                          }`}>
-                            {opt.badge}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-300 leading-relaxed">
-                          {opt.description}
-                        </p>
-                      </div>
-
-                      <div className="mt-2.5 pt-2 border-t border-[#1b2742] flex items-center justify-between">
-                        <span className="text-[9.5px] text-indigo-300/80 italic line-clamp-1">
-                          {opt.id === 'hands_pov' && '🖐️ 100% Faceless creator'}
-                          {opt.id === 'face_closeup' && '👤 Mikro-ekspresi & kontak mata riil'}
-                          {opt.id === 'full_body' && '🧍 Gerak dinamis 9:16 vertikal'}
-                          {opt.id === 'mix_framing' && '🔀 Alur proporsional Hook s/d CTA'}
-                        </span>
-                        <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
-                          isSelected
-                            ? 'border-indigo-400 bg-indigo-600 text-white'
-                            : 'border-slate-600 bg-transparent'
-                        }`}>
-                          {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Anti-AI Realism & Google Flow System Lock Notice */}
-              <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-700/40 text-[11px] text-emerald-200 flex items-start gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <div className="font-bold text-emerald-300">
-                    Sistem Terkunci: Konsistensi Produk Google Flow & Anti-AI Realism
-                  </div>
-                  <p className="text-slate-300 text-[10.5px] leading-relaxed">
-                    AI mewajibkan deskripsi visual kemasan, warna, logo, dan tekstur produk selalu identik antar adegan untuk referensi Google Flow. Menolak estetika CGI, kartun, filter robotik artifisial, atau gerakan sintetis.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Style Kamera & Sinematografi UGC (AI Recommendation + Manual Selection) */}
-            <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-b from-[#131a2c] to-[#0e1422] border border-[#23304d] space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-purple-950/80 border border-purple-600/40 flex items-center justify-center text-purple-300">
-                    <Camera className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                        Style Kamera & Sinematografi
-                      </span>
-                      <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-600/50 px-2 py-0.2 rounded-full font-bold">
-                        AI Recommended / Manual
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      Tentukan gaya pergerakan kamera dan framing visual sebelum generate storyboard.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsCustomCamera(!isCustomCamera)}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all self-start sm:self-center ${
-                    isCustomCamera
-                      ? 'bg-purple-900/50 text-purple-200 border-purple-500'
-                      : 'bg-[#182133] text-slate-300 border-[#2b3a58] hover:bg-[#222e48]'
-                  }`}
-                >
-                  {isCustomCamera ? '← Pilih dari Opsi Preset' : '✍️ Tulis Style Custom'}
-                </button>
-              </div>
-
-              {/* AI Recommendation Spotlight Banner */}
-              <div className="p-2.5 rounded-lg bg-purple-950/40 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-bold text-amber-300">
-                        Rekomendasi AI untuk {category}:
-                      </span>
-                      <span className="text-xs font-extrabold text-white">
-                        {recommendedCameraInfo.styleName}
-                      </span>
-                      <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-700/50 px-1.5 py-0.2 rounded">
-                        {matchedCameraPreset.badge}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 mt-0.5">
-                      {aiCameraReason || recommendedCameraInfo.reason || matchedCameraPreset.description}
-                    </p>
-                  </div>
-                </div>
-
-                {!isCustomCamera && cameraStyle !== recommendedCameraInfo.styleName && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCameraStyle(recommendedCameraInfo.styleName);
-                    }}
-                    className="shrink-0 bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md transition-all active:scale-95 flex items-center gap-1.5 self-start sm:self-center"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-200" />
-                    <span>Terapkan Rekomendasi</span>
-                  </button>
-                )}
-                {!isCustomCamera && cameraStyle === recommendedCameraInfo.styleName && (
-                  <span className="shrink-0 text-[11px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-600/50 px-2.5 py-1 rounded-md flex items-center gap-1 self-start sm:self-center">
-                    <Check className="w-3 h-3 text-emerald-400" />
-                    <span>Rekomendasi Aktif</span>
-                  </span>
-                )}
-              </div>
-
-              {/* Custom Camera Input Mode */}
-              {isCustomCamera ? (
-                <div className="space-y-1.5 animate-fadeIn">
-                  <label className="block text-[11px] font-semibold text-purple-300">
-                    Instruksi Khusus Gaya Kamera & Sinematografi:
-                  </label>
-                  <input
-                    type="text"
-                    value={customCameraStyle}
-                    onChange={(e) => setCustomCameraStyle(e.target.value)}
-                    placeholder="Contoh: Macro extreme close-up tekstur produk + 360 rotation table + snap zoom saat hook"
-                    className="w-full bg-[#141b2b] border border-purple-500/50 focus:border-purple-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
-                  />
-                  <p className="text-[10px] text-slate-400">
-                    AI akan menginstruksikan seluruh adegan storyboard agar bergerak sesuai gaya kamera kustom yang Anda masukkan.
-                  </p>
-                </div>
-              ) : (
-                /* Preset Grid of Camera Styles */
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {CAMERA_STYLE_OPTIONS.map((style) => {
-                    const isSelected = cameraStyle === style.name;
-                    const isRecommended = recommendedCameraInfo.styleName.toLowerCase() === style.name.toLowerCase();
-                    return (
-                      <div
-                        key={style.id}
-                        onClick={() => setCameraStyle(style.name)}
-                        className={`cursor-pointer p-2.5 rounded-xl border transition-all text-left flex flex-col justify-between relative group ${
-                          isSelected
-                            ? 'bg-purple-950/70 border-purple-400 shadow-md shadow-purple-950/50'
-                            : 'bg-[#121828] border-[#222e47] hover:border-purple-500/50 hover:bg-[#161e32]'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-950/80 px-1.5 py-0.2 rounded border border-purple-800/40 line-clamp-1">
-                              {style.badge}
-                            </span>
-                            {isRecommended && (
-                              <span className="text-[9px] font-bold text-amber-300 bg-amber-950/60 border border-amber-600/40 px-1 py-0.2 rounded shrink-0">
-                                ★ Rekomendasi
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs font-bold text-white mb-1 line-clamp-1">
-                            {style.name}
-                          </div>
-                          <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
-                            {style.description}
-                          </p>
-                        </div>
-
-                        <div className="mt-2 pt-1.5 border-t border-[#1b253b] flex items-center justify-between">
-                          <span className="text-[9px] text-slate-500 line-clamp-1">
-                            {style.bestFor}
-                          </span>
-                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                            isSelected
-                              ? 'border-purple-400 bg-purple-600 text-white'
-                              : 'border-slate-600 bg-transparent'
-                          }`}>
-                            {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Formula Pemasaran & Optimasi Konversi (Klik Pembeli & Anti-Anomali) */}
-            <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-b from-[#131b2e] to-[#0d1322] border border-[#233352] space-y-3.5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-950/80 border border-emerald-600/40 flex items-center justify-center text-emerald-400">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
-                        Formula Pemasaran & Konversi Klik (CTR)
-                      </span>
-                      <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/50 px-2 py-0.2 rounded-full font-bold flex items-center gap-1">
-                        <ShoppingBag className="w-2.5 h-2.5" /> High Conversion
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      Rancang alur psikologi pembeli dari hook 3 detik hingga ajakan klik keranjang kuning.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 self-start sm:self-center">
-                  <span className="text-[10px] bg-sky-950/90 text-sky-300 border border-sky-600/50 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-sky-400" /> Bebas Gerakan Anomali
-                  </span>
-                </div>
-              </div>
-
-              {/* 1. Marketing Framework Selector */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-                  1. Formula Alur Penjualan (Framework)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {MARKETING_FRAMEWORKS.map((fw) => {
-                    const isSelected = marketingFramework === fw.id;
-                    return (
-                      <div
-                        key={fw.id}
-                        onClick={() => setMarketingFramework(fw.id)}
-                        className={`p-2.5 rounded-xl border cursor-pointer transition-all text-left flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-emerald-950/40 border-emerald-500 shadow-md shadow-emerald-950/50'
-                            : 'bg-[#101726] border-[#1f2b45] hover:border-[#2f4066]'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-xs font-bold text-white line-clamp-1">{fw.name}</span>
-                            <span className="text-[9px] bg-emerald-900/60 text-emerald-200 px-1.5 py-0.5 rounded font-semibold whitespace-nowrap">
-                              {fw.badge}
-                            </span>
-                          </div>
-                          <p className="text-[10.5px] text-slate-300 line-clamp-2 leading-relaxed">
-                            {fw.description}
-                          </p>
-                        </div>
-                        <div className="mt-2 pt-1.5 border-t border-[#1b253b] flex items-center justify-between text-[9.5px]">
-                          <span className="text-amber-300/90 font-medium line-clamp-1">
-                            💡 {fw.psychologyTrigger}
-                          </span>
-                          <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                            isSelected
-                              ? 'border-emerald-400 bg-emerald-600 text-white'
-                              : 'border-slate-600 bg-transparent'
-                          }`}>
-                            {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. Hook 3 Detik & CTA Options */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                {/* Hook Strategy */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                    2. Tipe Hook Pembuka (Stop-Scrolling)
-                  </label>
-                  <select
-                    value={hookStrategy}
-                    onChange={(e) => setHookStrategy(e.target.value)}
-                    className="w-full bg-[#101726] border border-[#1f2b45] focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none transition-all"
-                  >
-                    {HOOK_STRATEGY_OPTIONS.map((hk) => (
-                      <option key={hk.id} value={hk.id}>
-                        {hk.name} ({hk.badge})
-                      </option>
-                    ))}
-                  </select>
-                  {(() => {
-                    const currentHook = HOOK_STRATEGY_OPTIONS.find((h) => h.id === hookStrategy);
-                    return currentHook ? (
-                      <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-1">
-                        Contoh: "{currentHook.example}"
-                      </p>
-                    ) : null;
-                  })()}
-                </div>
-
-                {/* Call to Action (CTA) Preset */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                    3. Target Call to Action (CTA) Penutup
-                  </label>
-                  <select
-                    value={ctaPreset}
-                    onChange={(e) => setCtaPreset(e.target.value)}
-                    className="w-full bg-[#101726] border border-[#1f2b45] focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none transition-all"
-                  >
-                    {CTA_PRESETS.map((cta, idx) => (
-                      <option key={idx} value={cta.label}>
-                        {cta.label}
-                      </option>
-                    ))}
-                  </select>
-                  {(() => {
-                    const currentCta = CTA_PRESETS.find((c) => c.label === ctaPreset);
-                    return currentCta ? (
-                      <p className="text-[10px] text-emerald-400 mt-1 font-mono line-clamp-1">
-                        Popup: {currentCta.popupText}
-                      </p>
-                    ) : null;
-                  })()}
-                </div>
               </div>
             </div>
 

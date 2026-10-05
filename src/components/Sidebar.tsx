@@ -16,7 +16,9 @@ import {
   Plus,
   Wand2,
   Clock,
-  Layers
+  Layers,
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import { UGC_CATEGORIES } from '../data/categories';
 import { UGCTemplateCategory, StoryboardProject } from '../types';

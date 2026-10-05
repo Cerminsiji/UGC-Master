@@ -13,19 +13,15 @@ import {
   Coins,
   Pencil,
   Code,
-  Check,
-  Film,
-  TrendingUp,
-  Lock
+  Check
 } from 'lucide-react';
 import { formatDuration } from '../utils/helpers';
-import { Scene, StoryboardViewMode, GoogleUserProfile } from '../types';
+import { Scene, StoryboardViewMode } from '../types';
 
 interface HeaderProps {
   title: string;
   categoryName: string;
   categoryBadge: string;
-  visualFraming?: string;
   scenes: Scene[];
   viewMode: StoryboardViewMode;
   onViewModeChange: (mode: StoryboardViewMode) => void;
@@ -35,20 +31,14 @@ interface HeaderProps {
   onOpenTeleprompter: () => void;
   onOpenExportModal: () => void;
   onOpenProjectsModal: () => void;
-  onOpenVideoModal?: () => void;
   onAddScene: () => void;
   onCopyJSON?: () => void;
   isJsonCopied?: boolean;
-  googleUser?: GoogleUserProfile | null;
-  onGoogleLogin?: () => void;
-  onGoogleLogout?: () => void;
-  onLockApp?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title,
   categoryBadge,
-  visualFraming,
   scenes,
   viewMode,
   onViewModeChange,
@@ -58,18 +48,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTeleprompter,
   onOpenExportModal,
   onOpenProjectsModal,
-  onOpenVideoModal,
   onAddScene,
   onCopyJSON,
   isJsonCopied,
-  googleUser,
-  onGoogleLogin,
-  onGoogleLogout,
-  onLockApp,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   const totalDuration = scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0);
 
@@ -135,18 +119,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <Pencil className="w-3 h-3 text-slate-500 group-hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <div className="flex items-center gap-2 mt-0.5">
               <span className="text-[9px] font-bold text-purple-400 bg-purple-950/80 border border-purple-800/40 px-1.5 py-0.2 rounded uppercase tracking-wider">
                 {categoryBadge}
               </span>
-              {visualFraming && (
-                <span className="text-[9px] font-bold text-indigo-300 bg-indigo-950/80 border border-indigo-800/40 px-1.5 py-0.2 rounded tracking-wider flex items-center gap-1">
-                  {visualFraming === 'hands_pov' && '🖐️ Hands POV'}
-                  {visualFraming === 'face_closeup' && '👤 Close-up Face'}
-                  {visualFraming === 'full_body' && '🧍 Full Body'}
-                  {visualFraming === 'mix_framing' && '🔀 Mix Framing'}
-                </span>
-              )}
               <span className="text-[10px] text-slate-400">
                 • {scenes.length} Adegan
               </span>
@@ -288,18 +264,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">Export</span>
           </button>
 
-          {/* Video Preview & MP4 Export (Client-side FFmpeg) */}
-          {onOpenVideoModal && (
-            <button
-              onClick={onOpenVideoModal}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-purple-700/90 to-indigo-700/90 hover:from-purple-600 hover:to-indigo-600 text-white border border-purple-400/40 text-xs font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-md shadow-purple-950/40"
-              title="Render storyboard menjadi video MP4 utuh menggunakan FFmpeg di browser"
-            >
-              <Film className="w-3.5 h-3.5 text-purple-200" />
-              <span>Video MP4</span>
-            </button>
-          )}
-
           {/* Project Manager Button */}
           <button
             onClick={onOpenProjectsModal}
@@ -308,121 +272,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <FolderOpen className="w-4 h-4" />
           </button>
-
-          {/* Lock App Security Button */}
-          {onLockApp && (
-            <button
-              onClick={onLockApp}
-              className="p-1.5 rounded-xl bg-[#121927] hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-[#222e47] hover:border-rose-700/50 transition-all active:scale-95"
-              title="Kunci Aplikasi (Perlu Password Ilalang@27)"
-            >
-              <Lock className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* Google Flow / Account Status Button */}
-          <div className="relative">
-            {googleUser ? (
-              <div>
-                <button
-                  onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  className="flex items-center gap-1.5 bg-[#121927] hover:bg-[#1b253b] border border-emerald-500/40 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95"
-                  title="Akun Google terhubung (Google Flow & Drive Aktif)"
-                >
-                  {googleUser.photoURL ? (
-                    <img
-                      src={googleUser.photoURL}
-                      alt={googleUser.displayName || 'Google User'}
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center font-bold">
-                      {(googleUser.displayName || googleUser.email || 'G')[0].toUpperCase()}
-                    </div>
-                  )}
-                  <span className="text-emerald-300 hidden md:inline max-w-[90px] truncate">
-                    {googleUser.displayName?.split(' ')[0] || 'Google'}
-                  </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                </button>
-
-                {showUserDropdown && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#0f1422] border border-[#23304d] shadow-2xl p-3 z-50 animate-fadeIn space-y-2.5">
-                    <div className="flex items-center gap-2.5 pb-2 border-b border-[#1f2a42]">
-                      {googleUser.photoURL ? (
-                        <img
-                          src={googleUser.photoURL}
-                          alt="Google Profile"
-                          className="w-9 h-9 rounded-full object-cover border border-emerald-500/40"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center">
-                          {(googleUser.displayName || 'G')[0]}
-                        </div>
-                      )}
-                      <div className="overflow-hidden">
-                        <div className="text-xs font-bold text-white truncate">
-                          {googleUser.displayName || 'Pengguna Google'}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate">
-                          {googleUser.email}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                      <span>Google Flow & Drive Terhubung</span>
-                    </div>
-
-                    <p className="text-[10px] text-slate-400 leading-relaxed">
-                      Video hasil render dan naskah JSON dapat langsung disimpan ke Google Drive Anda.
-                    </p>
-
-                    {onGoogleLogout && (
-                      <button
-                        onClick={() => {
-                          setShowUserDropdown(false);
-                          onGoogleLogout();
-                        }}
-                        className="w-full text-center text-xs font-semibold py-1.5 px-3 rounded-lg bg-[#182135] hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-[#243350] hover:border-rose-500/40 transition-all"
-                      >
-                        Keluar dari Akun Google
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              onGoogleLogin && (
-                <button
-                  onClick={onGoogleLogin}
-                  className="flex items-center gap-1.5 bg-[#121927] hover:bg-[#1c263c] text-slate-200 hover:text-white border border-[#273654] hover:border-slate-500 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm"
-                  title="Masuk dengan Google untuk kredensial Google Flow & Drive"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                    <path
-                      fill="#EA4335"
-                      d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.8 5 12 5z"
-                    />
-                    <path
-                      fill="#4285F4"
-                      d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.7s.2-2 .4-2.7L1.6 6.4C.6 8.4 0 10.6 0 13s.6 4.6 1.6 6.6l3.7-2.9z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.4-6.7-5.3L1.6 15.9C3.5 19.7 7.4 23 12 23z"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Masuk Google</span>
-                </button>
-              )
-            )}
-          </div>
 
           {/* Primary AI Generator */}
           <button
