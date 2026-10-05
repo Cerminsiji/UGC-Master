@@ -46,7 +46,13 @@ export interface StoryboardProject {
   categoryId: string;
   productName?: string;
   brandName?: string;
+  productUrl?: string; // Link hasil ekstraksi produk
+  productDescription?: string; // Deskripsi produk
+  keySellingPoints?: string; // Parameter UGC / USP
+  persona?: 'Pria' | 'Wanita' | 'Hijaber' | 'Semua (Netral)'; // Persona talent
+  tone?: string; // Voice tone
   targetAudience?: string;
+  targetPlatform?: string;
   caption?: string; // Auto caption & hashtags (max 150 chars)
   scenes: Scene[];
   hookVariants?: HookVariant[];
@@ -58,9 +64,11 @@ export interface StoryboardProject {
 export interface AIGenerateParams {
   category: string;
   productName: string;
+  productUrl?: string;
   productDescription?: string;
   targetAudience?: string;
   keySellingPoints?: string;
+  persona?: 'Pria' | 'Wanita' | 'Hijaber' | 'Semua (Netral)';
   tone: string;
   targetDuration: number;
   targetSceneCount?: number;
@@ -70,10 +78,12 @@ export interface AIGenerateParams {
 
 export interface AutoDetectResult {
   productName: string;
+  productUrl?: string;
   category: string;
   productDescription: string;
   targetAudience: string;
   keySellingPoints: string;
+  persona?: 'Pria' | 'Wanita' | 'Hijaber' | 'Semua (Netral)';
   tone: string;
   targetPlatform: string;
   targetDuration: number;
@@ -102,4 +112,4 @@ export interface RateCardConfig {
   notes?: string;
 }
 
-export type StoryboardViewMode = 'cards' | 'table' | 'phone_preview' | 'shot_list' | 'rate_card';
+export type StoryboardViewMode = 'cards' | 'table' | 'rate_card';

@@ -299,7 +299,8 @@ app.post('/api/generate-storyboard', async (req, res) => {
       productDescription = '',
       targetAudience = 'Pengguna TikTok / Reels usia 18-35 tahun',
       keySellingPoints = '',
-      tone = 'Santai, Antusias & Meyakinkan',
+      persona = 'Wanita',
+      tone = 'Santai, Mengalir & Natural (Teman Curhat)',
       targetDuration = 30,
       targetSceneCount = 0, // 0 = Auto, or 3-9 adegan
       platform = 'TikTok / Reels',
@@ -318,6 +319,7 @@ Nama Produk: ${productName}
 Deskripsi Produk: ${productDescription || 'Produk viral berkualitas tinggi dengan manfaat nyata'}
 Target Audiens: ${targetAudience}
 Poin Penjualan Utama (USP): ${keySellingPoints || 'Hasil cepat, harga terjangkau, praktis digunakan'}
+Persona Talent Kreator: ${persona} (Pria / Wanita / Hijaber / Netral. Sesuaikan gaya bicara VO, ekspresi visual, dan OOTD talent dengan persona ini!)
 Tone of Voice: ${tone}
 Target Durasi Total: ${targetDuration} detik
 Jumlah Adegan yang Diminta: ${sceneCountText}
@@ -787,6 +789,17 @@ Tugas Anda:
     // Heuristic Offline Auto-Detector Fallback
     const combined = rawInputCombined.toLowerCase();
     const cleanTextNoUrls = rawInputCombined.replace(/https?:\/\/\S+/gi, '').replace(/[#@][\w-]+/g, '').trim();
+    const urlMatch = rawInputCombined.match(/https?:\/\/\S+/i);
+    const detectedUrl = urlMatch ? urlMatch[0] : '';
+
+    let detectedPersona: 'Pria' | 'Wanita' | 'Hijaber' | 'Semua (Netral)' = 'Wanita';
+    if (combined.includes('hijab') || combined.includes('hijaber') || combined.includes('gamis') || combined.includes('kerudung') || combined.includes('muslimah')) {
+      detectedPersona = 'Hijaber';
+    } else if (combined.includes('pria') || combined.includes('cowok') || combined.includes('bapak') || combined.includes('pomade') || combined.includes('gentleman') || combined.includes('men')) {
+      detectedPersona = 'Pria';
+    } else if (combined.includes('gadget') || combined.includes('keyboard') || combined.includes('unboxing') || combined.includes('elektronik')) {
+      detectedPersona = 'Semua (Netral)';
+    }
 
     let detectedName = 'Produk Unggulan Pilihan';
     let detectedCat = 'Before & After';
@@ -878,10 +891,12 @@ Tugas Anda:
       success: true,
       data: {
         productName: detectedName,
+        productUrl: detectedUrl,
         category: detectedCat,
         productDescription: detectedDesc,
         targetAudience: detectedAudience,
         keySellingPoints: detectedUSP,
+        persona: detectedPersona,
         tone: detectedTone,
         targetPlatform: detectedPlatform,
         targetDuration: detectedDuration,

@@ -1,26 +1,25 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
-  Tv,
   Download,
-  Flame,
   FolderOpen,
   Plus,
+  Tv,
+  Coins,
   LayoutGrid,
   FileSpreadsheet,
-  Smartphone,
-  Camera,
-  Coins,
   Pencil,
   Code,
-  Check
+  Check,
+  Flame,
+  Zap,
+  Lock
 } from 'lucide-react';
+import { StoryboardViewMode, Scene } from '../types';
 import { formatDuration } from '../utils/helpers';
-import { Scene, StoryboardViewMode } from '../types';
 
 interface HeaderProps {
   title: string;
-  categoryName: string;
   categoryBadge: string;
   scenes: Scene[];
   viewMode: StoryboardViewMode;
@@ -34,6 +33,7 @@ interface HeaderProps {
   onAddScene: () => void;
   onCopyJSON?: () => void;
   isJsonCopied?: boolean;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -51,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onAddScene,
   onCopyJSON,
   isJsonCopied,
+  onLogout,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
@@ -67,21 +68,24 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#0a0e17]/95 backdrop-blur-md border-b border-[#1b253b] px-4 lg:px-6 py-2.5">
+    <header className="sticky top-0 z-30 bg-[#0a0e17]/95 backdrop-blur-md border-b border-[#1b253b] px-4 lg:px-6 py-2.5 font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="max-w-[1700px] mx-auto flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
         
         {/* Left: Brand Identity & Active Storyboard Title */}
         <div className="flex items-center justify-between xl:justify-start gap-3.5">
           <div className="flex items-center gap-2.5 pr-3.5 border-r border-[#1e293f]">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-purple-900/40">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-purple-900/40">
               U
             </div>
             <div>
-              <div className="text-white font-extrabold text-sm tracking-tight leading-none">
-                UGC Studio
+              <div className="text-white font-extrabold text-sm tracking-tight leading-none flex items-center gap-1.5">
+                <span>UGC Master Studio</span>
+                <span className="text-[9px] bg-purple-950 text-purple-300 border border-purple-700/50 px-1.5 py-0.2 rounded font-bold">
+                  PRO
+                </span>
               </div>
               <div className="text-[9px] font-semibold text-purple-400 tracking-wider uppercase mt-0.5">
-                Affiliate Storyboard
+                Arsitek Naskah & Storyboard Viral
               </div>
             </div>
           </div>
@@ -130,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Creator Workflow Switcher (5 Dedicated Tools) */}
+        {/* Center: Creator Workflow Switcher (Cards / Table / Rate Card) */}
         <div className="flex items-center self-start xl:self-center bg-[#101625] border border-[#1e293f] p-1 rounded-xl shadow-inner overflow-x-auto max-w-full custom-scrollbar">
           <button
             onClick={() => onViewModeChange('cards')}
@@ -154,30 +158,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Tabel Naskah</span>
-          </button>
-
-          <button
-            onClick={() => onViewModeChange('phone_preview')}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-              viewMode === 'phone_preview'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Simulasi 9:16</span>
-          </button>
-
-          <button
-            onClick={() => onViewModeChange('shot_list')}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-              viewMode === 'shot_list'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Shot-List Syuting</span>
           </button>
 
           <button
@@ -226,7 +206,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Buka Teleprompter layar penuh untuk rekam video"
           >
             <Tv className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden xl:inline">Teleprompter</span>
+            <span className="hidden 2xl:inline">Teleprompter</span>
           </button>
 
           {/* 1-Click Direct Copy JSON Storyboard */}
@@ -248,7 +228,7 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <>
                   <Code className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="font-bold">Copy JSON</span>
+                  <span className="font-bold hidden sm:inline">Copy JSON</span>
                 </>
               )}
             </button>
@@ -264,22 +244,24 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">Export</span>
           </button>
 
-          {/* Project Manager Button */}
+          {/* Project & Storyboard Manager (Naskah Saya) */}
           <button
             onClick={onOpenProjectsModal}
-            className="p-1.5 rounded-xl bg-[#121927] hover:bg-[#1b253b] text-slate-300 border border-[#222e47] transition-all active:scale-95"
-            title="Kelola & ganti project naskah"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#121927] hover:bg-[#1b253b] text-slate-200 border border-[#222e47] text-xs font-semibold transition-all active:scale-95"
+            title="Kelola semua naskah dan parameter UGC (Naskah Saya)"
           >
-            <FolderOpen className="w-4 h-4" />
+            <FolderOpen className="w-4 h-4 text-purple-400" />
+            <span className="hidden sm:inline font-bold">Naskah Saya</span>
           </button>
 
-          {/* Primary AI Generator */}
+          {/* Primary Action Button: Deteksi Produk */}
           <button
             onClick={onOpenAIGenerator}
             className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-md shadow-purple-950/50 transition-all active:scale-95 border border-purple-400/30"
+            title="Deteksi produk dari link & buat storyboard otomatis"
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-            <span>AI Generate</span>
+            <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300/30" />
+            <span>Deteksi Produk</span>
           </button>
 
           {/* Quick Add Scene */}
@@ -291,6 +273,17 @@ export const Header: React.FC<HeaderProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Adegan</span>
           </button>
+
+          {/* Lock / Logout Button */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1.5 rounded-xl bg-[#121927] hover:bg-red-950/40 text-slate-400 hover:text-red-300 border border-[#222e47] hover:border-red-800/40 transition-all active:scale-95"
+              title="Kunci Studio (Keluar)"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
+          )}
 
         </div>
       </div>

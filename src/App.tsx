@@ -2,15 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { SceneCard } from './components/SceneCard';
-import { PhoneSimulator } from './components/PhoneSimulator';
 import { ScriptTableView } from './components/ScriptTableView';
-import { ShotListChecklist } from './components/ShotListChecklist';
 import { RateCardCalculator } from './components/RateCardCalculator';
 import { AIGeneratorModal } from './components/AIGeneratorModal';
 import { HookGeneratorModal } from './components/HookGeneratorModal';
 import { TeleprompterModal } from './components/TeleprompterModal';
 import { ExportModal } from './components/ExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { PasswordGate, AUTH_STORAGE_KEY } from './components/PasswordGate';
 import { UGC_CATEGORIES } from './data/categories';
 import {
   Scene,
@@ -19,7 +18,6 @@ import {
   AIGenerateParams,
   AIHookOption,
   StoryboardViewMode,
-  ShotItem,
   HookVariant,
 } from './types';
 import { copyToClipboard, generateId } from './utils/helpers';
@@ -37,7 +35,8 @@ import {
   Copy,
   Info,
   Code,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 
 const STORAGE_KEY = 'ugc_master_projects_v1';
@@ -49,6 +48,12 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
   title: 'Storyboard Before & After',
   categoryId: 'before_after',
   productName: 'Sago Green Coffee',
+  productUrl: 'https://vt.tiktok.com/ZS2mSagoDiet/',
+  productDescription: 'Kopi hijau herbal penurun berat badan alami dengan ekstrak sago yang mengontrol nafsu makan seharian.',
+  keySellingPoints: 'Rasa enak gak pahit, bikin kenyang lebih lama, aman lambung, BPOM & Halal.',
+  persona: 'Pria',
+  tone: 'Santai, Mengalir & Natural (Teman Curhat)',
+  targetPlatform: 'TikTok Shop',
   targetAudience: 'Pria/wanita diet & sehat',
   caption: 'Cobain Sago Green Coffee! Bikin makin pede & hasil nyata. Cek keranjang kuning mumpung promo! ✨ #RacunTikTok #fyp #TikTokShop',
   createdAt: new Date().toISOString(),
@@ -100,71 +105,83 @@ const INITIAL_BEFORE_AFTER_PROJECT: StoryboardProject = {
     {
       id: 'sc_2',
       order: 2,
-      cameraAngle: 'Close-up Frustrated',
-      visualAction: 'Bapak menatap timbangan digital dengan ekspresi lelah dan putus asa.',
-      popupText: 'COBAIN DIET EKSTREM MALAH LEMAS 😭',
-      soundEffect: 'Record scratch freeze & Dramatic dun dun dun',
-      dialogVO: 'Udah coba nahan makan seharian malah maag kambuh dan badan lemas gak bertenaga.',
-      notesMood: 'Gaya teks: Warning Red tag. Nuansa murung.',
-      duration: 2,
+      cameraAngle: 'Close-up',
+      visualAction: 'Bapak menyeduh sachet Sago Green Coffee ke cangkir bening, aroma uap mengepul.',
+      popupText: 'UNTUNG KETEMU KOPI SAGO INI ☕✨',
+      soundEffect: 'Water pouring & gentle stir',
+      dialogVO: 'Untung nemu Sago Green Coffee, rasanya gak pahit sama sekali!',
+      notesMood: 'Gaya teks: Clean Minimalist. Warm coffee morning aesthetic.',
+      duration: 3,
     },
     {
       id: 'sc_3',
       order: 3,
-      cameraAngle: 'Close-up B-Roll',
-      visualAction: 'Menunjukkan kemasan Sago Green Coffee sachet praktis di tangan dengan latar cerah.',
-      popupText: 'UNTUNG NEMU SAGO GREEN COFFEE ☕',
-      soundEffect: 'Swoosh & sparkle chime',
-      dialogVO: 'Untung temen kantor ngenalin kopi hijau alami ini yang praktis tinggal seduh.',
-      notesMood: 'Gaya teks: Dynamic Bouncy. Fokus tajam pada produk.',
-      duration: 2,
+      cameraAngle: 'Over the Shoulder',
+      visualAction: 'Bapak minum santai di sofa ruang tamu sambil cek jadwal kerja tanpa rasa lemas.',
+      popupText: 'GA GAMPANG LAPER SEHARIAN 🔥',
+      soundEffect: 'Clock ticking fast & soft chime',
+      dialogVO: 'Biasanya jam 10 pagi udah nyari gorengan, sekarang kenyang sampai siang!',
+      notesMood: 'Gaya teks: Headline Banner. Natural window light.',
+      duration: 3,
     },
     {
       id: 'sc_4',
       order: 4,
-      cameraAngle: 'POV / Medium Shot',
-      visualAction: 'Menyeduh sachet kopi hijau dengan air panas, aroma mengepul nikmat diaduk dengan sendok.',
-      popupText: 'RASA ENAK & BIKIN KENYANG TAHAN LAMA 😋',
-      soundEffect: 'Pouring water swirl & Stirring cup ting',
-      dialogVO: 'Tiap pagi tinggal seduh, rasanya enak gak pahit, dan nafsu makan auto terkontrol seharian.',
-      notesMood: 'Gaya teks: Warm clean caption. Efek uap estetik.',
+      cameraAngle: 'Eye Level Medium',
+      visualAction: 'Transisi cepat side-by-side: Foto perut buncit kemeja sempit VS sekarang kancing rapi & perut rata.',
+      popupText: '3 MINGGU TURUN 4.5 KG! 📉',
+      soundEffect: 'Camera shutter & Cha-ching',
+      dialogVO: 'Baru 3 minggu, celana lama udah pada kedodoran!',
+      notesMood: 'Gaya teks: Bold Red/Green Before After. Split screen dynamic.',
       duration: 3,
     },
     {
       id: 'sc_5',
       order: 5,
-      cameraAngle: 'Wide Shot',
-      visualAction: 'Bapak tampil bugar dan percaya diri, mengenakan kaos pas badan dengan perut kempes rata.',
-      popupText: 'TURUN 8 KG PERUT KEMPES! 💪',
-      soundEffect: 'Level up victory chime & Bell ding',
-      dialogVO: 'Sekarang lingkar pinggang susut 8 cm, badan jauh lebih enteng dan segar!',
-      notesMood: 'Gaya teks: Green energetic transformation badge.',
-      duration: 3,
+      cameraAngle: 'Macro / Detail',
+      visualAction: 'Bapak memegang box produk dengan label BPOM & Halal terlihat jelas di kamera.',
+      popupText: '100% HERBAL & BPOM AMAN 🌿',
+      soundEffect: 'Glitter chime / Sparkle sound',
+      dialogVO: 'Aman di lambung, herbal alami, udah BPOM & Halal pastinya.',
+      notesMood: 'Gaya teks: Minimal White Outline. High sharpness focus.',
+      duration: 2,
     },
     {
       id: 'sc_6',
       order: 6,
       cameraAngle: 'Medium Close-up',
-      visualAction: 'Bapak tersenyum memegang produk sambil menunjuk ke keranjang kuning di kiri bawah.',
-      popupText: 'PROMO BELI 2 GRATIS 1 + FREE ONGKIR 🛒',
-      soundEffect: 'Cha-ching cash register & Applause',
-      dialogVO: 'Cobain deh di keranjang kuning mumpung ada promo beli 2 gratis 1 dan gratis ongkir!',
-      notesMood: 'Gaya teks: Flashing yellow CTA button.',
+      visualAction: 'Bapak tersenyum segar mengacungkan jempol sambil menunjuk ke sudut kiri bawah layar.',
+      popupText: 'CEK KERANJANG KUNING SEKARANG! 🛒👇',
+      soundEffect: 'Vine boom & Pop click',
+      dialogVO: 'Mumpung lagi promo diskon bundle, langsung klik keranjang kuning ya!',
+      notesMood: 'Gaya teks: Neon Pulsing Yellow. High energy closing CTA.',
       duration: 3,
     },
   ],
 };
 
 export default function App() {
+  // Authentication gate state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(AUTH_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Projects State with LocalStorage
   const [projects, setProjects] = useState<StoryboardProject[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch (e) {
-      console.error('Failed to parse saved projects:', e);
+      console.error('Failed to load projects from localStorage:', e);
     }
     return [INITIAL_BEFORE_AFTER_PROJECT];
   });
@@ -177,7 +194,7 @@ export default function App() {
     return INITIAL_BEFORE_AFTER_PROJECT.id;
   });
 
-  // View Mode: 'cards' (editor) | 'table' (script breakdown) | 'phone_preview' (9:16 simulation)
+  // View Mode: 'cards' | 'table' | 'rate_card'
   const [viewMode, setViewMode] = useState<StoryboardViewMode>('cards');
 
   const [copiedCaption, setCopiedCaption] = useState(false);
@@ -213,6 +230,13 @@ export default function App() {
         title: currentProject.title,
         category: activeCategory.name,
         categoryId: currentProject.categoryId,
+        productName: currentProject.productName || '',
+        productUrl: currentProject.productUrl || '',
+        productDescription: currentProject.productDescription || '',
+        keySellingPoints: currentProject.keySellingPoints || '',
+        persona: currentProject.persona || 'Wanita',
+        tone: currentProject.tone || '',
+        targetPlatform: currentProject.targetPlatform || 'TikTok Shop',
         totalDuration: currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0),
         caption: currentProject.caption || '',
         hookVariants: currentProject.hookVariants || [],
@@ -251,30 +275,38 @@ export default function App() {
     }
   }, [projects]);
 
+  // Save current project ID
   useEffect(() => {
     try {
       localStorage.setItem(CURRENT_PROJECT_ID_KEY, currentProjectId);
-    } catch {}
+    } catch (e) {
+      console.error('Failed to save project ID:', e);
+    }
   }, [currentProjectId]);
 
-  // Toast Helper
+  // Show temporary toast notification
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
-      setToastMessage((prev) => (prev === msg ? null : prev));
+      setToastMessage(null);
     }, 3000);
   };
 
-  // Helper to mutate active project
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {}
+    setIsAuthenticated(false);
+    showToast('Studio telah dikunci 🔒');
+  };
+
+  // Update current project helper
   const updateCurrentProject = (updater: (prev: StoryboardProject) => StoryboardProject) => {
-    setProjects((prevProjects) =>
-      prevProjects.map((p) => {
-        if (p.id === currentProject.id) {
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id === currentProjectId) {
           const updated = updater(p);
-          return {
-            ...updated,
-            updatedAt: new Date().toISOString(),
-          };
+          return { ...updated, updatedAt: new Date().toISOString() };
         }
         return p;
       })
@@ -284,51 +316,134 @@ export default function App() {
   // Title change
   const handleTitleChange = (newTitle: string) => {
     updateCurrentProject((p) => ({ ...p, title: newTitle }));
-    showToast(`Judul diperbarui: "${newTitle}"`);
+    showToast('Judul naskah diperbarui!');
   };
 
-  // Non-destructive category switch: updates metadata without erasing user's custom scenes
-  const handleSelectCategory = (cat: UGCTemplateCategory) => {
-    updateCurrentProject((p) => ({
-      ...p,
-      categoryId: cat.id,
-      title: p.title.startsWith('Storyboard ') ? `Storyboard ${cat.name}` : p.title,
-    }));
-    showToast(`Format video diubah ke: ${cat.name}`);
+  // Select category
+  const handleSelectCategory = (categoryId: string) => {
+    const cat = UGC_CATEGORIES.find((c) => c.id === categoryId);
+    if (!cat) return;
+
+    updateCurrentProject((p) => {
+      const isAlreadySame = p.categoryId === categoryId;
+      if (isAlreadySame) return p;
+
+      const newScenes: Scene[] = cat.defaultScenes.map((sc, idx) => ({
+        ...sc,
+        id: generateId(),
+        order: idx + 1,
+        duration: Number(sc.duration) || 3,
+      }));
+
+      return {
+        ...p,
+        categoryId: cat.id,
+        title: `Storyboard ${cat.name}`,
+        scenes: newScenes,
+      };
+    });
+
+    showToast(`Format berganti ke: ${cat.name}`);
   };
 
-  // Reset to default template of current category (with confirmation)
+  // Quick reset to default category scenes
   const handleResetToCategoryTemplate = (cat: UGCTemplateCategory) => {
+    if (!window.confirm(`Reset semua adegan ke template bawaan "${cat.name}"?`)) return;
+
     updateCurrentProject((p) => ({
       ...p,
-      categoryId: cat.id,
-      title: `Storyboard ${cat.name}`,
       scenes: cat.defaultScenes.map((sc, idx) => ({
         ...sc,
         id: generateId(),
         order: idx + 1,
+        duration: Number(sc.duration) || 3,
       })),
     }));
-    showToast(`Template default "${cat.name}" dimuat (${cat.defaultScenes.length} adegan).`);
+
+    showToast(`Template di-reset ke default ${cat.name}`);
   };
 
-  // Trigger AI with selected category
+  // Trigger AI modal prefilled with category
   const handleTriggerAICategory = (cat: UGCTemplateCategory) => {
-    updateCurrentProject((p) => ({ ...p, categoryId: cat.id }));
+    handleSelectCategory(cat.id);
     setIsAIGeneratorOpen(true);
   };
 
-  // Scene Operations
+  // Update single scene
+  const handleUpdateScene = (updatedScene: Scene) => {
+    updateCurrentProject((p) => ({
+      ...p,
+      scenes: p.scenes.map((s) => (s.id === updatedScene.id ? updatedScene : s)),
+    }));
+  };
+
+  // Delete scene
+  const handleDeleteScene = (sceneId: string) => {
+    if (currentProject.scenes.length <= 1) {
+      showToast('Minimal harus ada 1 adegan dalam storyboard.');
+      return;
+    }
+
+    updateCurrentProject((p) => {
+      const filtered = p.scenes.filter((s) => s.id !== sceneId);
+      const reordered = filtered.map((s, idx) => ({ ...s, order: idx + 1 }));
+      return { ...p, scenes: reordered };
+    });
+
+    showToast('Adegan berhasil dihapus');
+  };
+
+  // Duplicate scene
+  const handleDuplicateScene = (scene: Scene) => {
+    updateCurrentProject((p) => {
+      const index = p.scenes.findIndex((s) => s.id === scene.id);
+      const newScene: Scene = {
+        ...scene,
+        id: generateId(),
+        order: scene.order + 1,
+        popupText: `${scene.popupText} (Copy)`,
+      };
+
+      const updated = [...p.scenes];
+      updated.splice(index + 1, 0, newScene);
+      return {
+        ...p,
+        scenes: updated.map((s, idx) => ({ ...s, order: idx + 1 })),
+      };
+    });
+
+    showToast(`Adegan ${scene.order} berhasil diduplikasi!`);
+  };
+
+  // Move scene
+  const handleMoveScene = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentProject.scenes.length) return;
+
+    updateCurrentProject((p) => {
+      const newScenes = [...p.scenes];
+      const temp = newScenes[index];
+      newScenes[index] = newScenes[targetIndex];
+      newScenes[targetIndex] = temp;
+      return {
+        ...p,
+        scenes: newScenes.map((s, idx) => ({ ...s, order: idx + 1 })),
+      };
+    });
+  };
+
+  // Add new scene
   const handleAddScene = () => {
+    const newOrder = currentProject.scenes.length + 1;
     const newScene: Scene = {
       id: generateId(),
-      order: currentProject.scenes.length + 1,
+      order: newOrder,
       cameraAngle: 'Medium Shot',
-      visualAction: 'Kreator menjelaskan keunggulan produk secara antusias ke kamera.',
-      popupText: 'REKOMENDASI TERBAIK ✨',
+      visualAction: 'Kreator memperlihatkan manfaat produk secara natural.',
+      popupText: 'HASIL MAKSIMAL ✨',
       soundEffect: 'Swoosh',
-      dialogVO: 'Yuk buktikan sendiri hasilnya sekarang juga!',
-      notesMood: 'Gaya teks: Clean Modern. Tone cerah.',
+      dialogVO: 'Gak nyangka hasilnya bisa sebagus ini.',
+      notesMood: 'Gaya teks: Modern Yellow. Pencahayaan natural.',
       duration: 3,
     };
 
@@ -337,94 +452,38 @@ export default function App() {
       scenes: [...p.scenes, newScene],
     }));
 
-    showToast(`Adegan ${currentProject.scenes.length + 1} berhasil ditambahkan!`);
+    showToast(`Adegan ${newOrder} ditambahkan!`);
   };
 
-  const handleUpdateScene = (updatedScene: Scene) => {
-    updateCurrentProject((p) => ({
-      ...p,
-      scenes: p.scenes.map((sc) => (sc.id === updatedScene.id ? updatedScene : sc)),
-    }));
-  };
+  // AI Enhance Scene
+  const handleEnhanceScene = async (sceneId: string, instruction: string) => {
+    const targetScene = currentProject.scenes.find((s) => s.id === sceneId);
+    if (!targetScene) return;
 
-  const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
-    updateCurrentProject((p) => {
-      const newScenes = [...p.scenes];
-      const temp = newScenes[index - 1];
-      newScenes[index - 1] = newScenes[index];
-      newScenes[index] = temp;
-      return { ...p, scenes: newScenes };
-    });
-  };
-
-  const handleMoveDown = (index: number) => {
-    if (index >= currentProject.scenes.length - 1) return;
-    updateCurrentProject((p) => {
-      const newScenes = [...p.scenes];
-      const temp = newScenes[index + 1];
-      newScenes[index + 1] = newScenes[index];
-      newScenes[index] = temp;
-      return { ...p, scenes: newScenes };
-    });
-  };
-
-  const handleDuplicateScene = (index: number) => {
-    const targetScene = currentProject.scenes[index];
-    const clonedScene: Scene = {
-      ...targetScene,
-      id: generateId(),
-      order: index + 2,
-    };
-
-    updateCurrentProject((p) => {
-      const newScenes = [...p.scenes];
-      newScenes.splice(index + 1, 0, clonedScene);
-      return { ...p, scenes: newScenes };
-    });
-
-    showToast(`Adegan ${index + 1} berhasil diduplikasi!`);
-  };
-
-  const handleDeleteScene = (index: number) => {
-    if (currentProject.scenes.length <= 1) return;
-    updateCurrentProject((p) => {
-      const newScenes = p.scenes.filter((_, idx) => idx !== index);
-      return { ...p, scenes: newScenes };
-    });
-    showToast(`Adegan ${index + 1} telah dihapus.`);
-  };
-
-  // AI Single Scene Polish
-  const handleEnhanceSceneAI = async (scene: Scene) => {
-    setEnhancingSceneId(scene.id);
+    setEnhancingSceneId(sceneId);
     try {
       const res = await fetch('/api/enhance-scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          scene,
+          scene: targetScene,
           category: activeCategory.name,
-          instruction: 'Tingkatkan agar lebih viral, hook lebih tajam, dan aksi visual lebih ekspresif',
+          instruction,
         }),
       });
-      const rawText = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        data = {};
-      }
+
+      const data = await res.json();
       if (data.success && data.scene) {
         handleUpdateScene({
-          ...scene,
+          ...targetScene,
           ...data.scene,
-          id: scene.id,
-          duration: Number(data.scene.duration) || scene.duration,
+          id: targetScene.id,
+          order: targetScene.order,
+          duration: targetScene.duration,
         });
-        showToast('✨ Adegan berhasil dipercantik dengan AI!');
+        showToast('✨ Adegan berhasil di-polish oleh AI!');
       } else {
-        showToast('Gagal memoles adegan');
+        showToast('Gagal memproses AI enhance');
       }
     } catch (e) {
       console.error('Enhance scene error:', e);
@@ -476,6 +535,12 @@ export default function App() {
           title: resData.data.title || `Storyboard ${params.category} - ${params.productName}`,
           categoryId: matchedCat.id,
           productName: params.productName,
+          productUrl: params.productUrl,
+          productDescription: params.productDescription,
+          keySellingPoints: params.keySellingPoints,
+          persona: params.persona,
+          tone: params.tone,
+          targetPlatform: params.targetPlatform,
           targetAudience: params.targetAudience,
           caption: resData.data.caption || `Cobain ${params.productName}! Hasil nyata bikin makin pede. Cek keranjang kuning sekarang! ✨ #RacunTikTok #fyp #TikTokShop`.slice(0, 150),
           createdAt: new Date().toISOString(),
@@ -488,11 +553,11 @@ export default function App() {
         setIsAIGeneratorOpen(false);
         showToast('🎉 Storyboard AI berhasil dibuat!');
       } else {
-        showToast(resData.error || 'Gagal menghasilkan storyboard AI.');
+        showToast('Gagal membuat storyboard AI. Coba lagi.');
       }
-    } catch (err: any) {
-      console.error('Generate error:', err);
-      showToast(err?.message || 'Terjadi kesalahan saat generate storyboard');
+    } catch (e) {
+      console.error('Generate storyboard error:', e);
+      showToast('Gagal terhubung ke generator AI.');
     } finally {
       setIsGeneratingAI(false);
     }
@@ -575,30 +640,36 @@ export default function App() {
   const handleCreateNewProject = () => {
     const newProj: StoryboardProject = {
       id: generateId(),
-      title: 'Storyboard UGC Baru',
+      title: 'Naskah Storyboard Baru',
       categoryId: 'before_after',
+      productName: 'Produk Baru',
+      persona: 'Wanita',
+      tone: 'Santai, Mengalir & Natural (Teman Curhat)',
+      targetPlatform: 'TikTok Shop',
+      keySellingPoints: 'Kualitas terbaik, hasil nyata, terjangkau.',
+      caption: 'Wajib coba produk ini! Bikin takjub & super praktis. Checkout di keranjang kuning! ✨ #fyp #viral #TikTokShop',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       scenes: [
         {
           id: generateId(),
           order: 1,
-          cameraAngle: 'Medium Shot',
-          visualAction: 'Kreator menyapa dengan ekspresi kaget dan hook penasaran.',
-          popupText: 'JANGAN SKIP! 🔥',
-          soundEffect: 'Vine boom',
-          dialogVO: 'Stop scrolling! Kalian wajib tahu ini!',
+          cameraAngle: 'POV / Close-up',
+          visualAction: 'Kreator menyapa dengan ekspresi kaget dan gestur menyetop scrolling.',
+          popupText: 'JANGAN SKIP DULU! 🔥',
+          soundEffect: 'Vine boom & Scratch',
+          dialogVO: 'Stop scrolling! Kalian wajib tahu rahasia yang satu ini!',
           notesMood: 'Gaya teks: Bold Red. High energy.',
           duration: 3,
         },
         {
           id: generateId(),
           order: 2,
-          cameraAngle: 'Close-up',
-          visualAction: 'Demonstrasi produk ke kamera.',
-          popupText: 'HASIL NYATA ✨',
-          soundEffect: 'Swoosh',
-          dialogVO: 'Ini rahasia yang bikin perubahannya instan.',
+          cameraAngle: 'Medium Close-up',
+          visualAction: 'Demonstrasi produk ke kamera dengan antusias.',
+          popupText: 'HASIL NYATA BANGET ✨',
+          soundEffect: 'Swoosh & Chime',
+          dialogVO: 'Ini dia produk yang bikin perubahan instan dan bikin nagih!',
           notesMood: 'Gaya teks: Clean Modern.',
           duration: 3,
         },
@@ -608,7 +679,7 @@ export default function App() {
     setProjects((prev) => [newProj, ...prev]);
     setCurrentProjectId(newProj.id);
     setIsProjectsModalOpen(false);
-    showToast('Project baru dibuat!');
+    showToast('Naskah baru dibuat!');
   };
 
   const handleDuplicateProject = (proj: StoryboardProject) => {
@@ -618,7 +689,6 @@ export default function App() {
       title: `${proj.title} (Copy)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      scenes: proj.scenes.map((sc) => ({ ...sc, id: generateId() })),
     };
     setProjects((prev) => [duplicated, ...prev]);
     setCurrentProjectId(duplicated.id);
@@ -626,96 +696,22 @@ export default function App() {
   };
 
   const handleDeleteProject = (projId: string) => {
-    if (projects.length <= 1) return;
-    const remaining = projects.filter((p) => p.id !== projId);
-    setProjects(remaining);
-    if (currentProjectId === projId) {
-      setCurrentProjectId(remaining[0].id);
-    }
-    showToast('Project telah dihapus.');
-  };
-
-  // Shot List Update Handler
-  const handleUpdateShotList = (items: ShotItem[]) => {
-    updateCurrentProject((prev) => ({
-      ...prev,
-      shotList: items,
-    }));
-  };
-
-  // A/B Hook Testing Variant Handlers
-  const [activeHookIndex, setActiveHookIndex] = useState<number>(0);
-
-  const handleSelectHookVariant = (variantIdx: number) => {
-    setActiveHookIndex(variantIdx);
-    const variants = currentProject.hookVariants || [];
-    if (variants[variantIdx]) {
-      const v = variants[variantIdx];
-      updateCurrentProject((prev) => {
-        const updatedScenes = [...prev.scenes];
-        if (updatedScenes[0]) {
-          updatedScenes[0] = {
-            ...updatedScenes[0],
-            dialogVO: v.dialogVO,
-            visualAction: v.visualAction,
-            popupText: v.popupText,
-            soundEffect: v.soundEffect,
-            duration: v.duration || updatedScenes[0].duration,
-          };
-        }
-        return {
-          ...prev,
-          scenes: updatedScenes,
-        };
-      });
-      showToast(`Beralih ke variasi: ${v.name}`);
-    }
-  };
-
-  const handleAddHookVariant = () => {
-    const currentVariants = currentProject.hookVariants && currentProject.hookVariants.length > 0
-      ? currentProject.hookVariants
-      : [
-          {
-            id: 'h_a',
-            name: 'Hook A (Utama)',
-            type: 'Visual Shock',
-            dialogVO: currentProject.scenes[0]?.dialogVO || '',
-            visualAction: currentProject.scenes[0]?.visualAction || '',
-            popupText: currentProject.scenes[0]?.popupText || '',
-            soundEffect: currentProject.scenes[0]?.soundEffect || '',
-            duration: currentProject.scenes[0]?.duration || 3,
-          },
-        ];
-
-    if (currentVariants.length >= 3) {
-      showToast('Maksimal 3 variasi hook untuk A/B testing.');
+    if (projects.length <= 1) {
+      showToast('Minimal harus ada 1 project naskah.');
       return;
     }
-
-    const nextChar = String.fromCharCode(65 + currentVariants.length);
-    const newVariant: HookVariant = {
-      id: generateId(),
-      name: `Hook ${nextChar}`,
-      type: 'FOMO / Secret',
-      dialogVO: 'Sumpah kalian harus tau ini sebelum kehabisan!',
-      visualAction: 'Talent menunjuk ke kamera dengan ekspresi heboh, memperlihatkan kemasan produk.',
-      popupText: 'JANGAN SKIP! RAHASIA TERBONGKAR 😱',
-      soundEffect: 'Vine boom & Cha-ching',
-      duration: 3,
-    };
-
-    const updated = [...currentVariants, newVariant];
-    updateCurrentProject((prev) => ({
-      ...prev,
-      hookVariants: updated,
-    }));
-    setActiveHookIndex(updated.length - 1);
-    handleSelectHookVariant(updated.length - 1);
-    showToast(`Varian ${newVariant.name} berhasil ditambahkan!`);
+    const filtered = projects.filter((p) => p.id !== projId);
+    setProjects(filtered);
+    if (currentProjectId === projId) {
+      setCurrentProjectId(filtered[0].id);
+    }
+    showToast('Project naskah berhasil dihapus');
   };
 
-  const totalDuration = currentProject.scenes.reduce((sum, sc) => sum + (Number(sc.duration) || 0), 0);
+  // If not authenticated, show password gate
+  if (!isAuthenticated) {
+    return <PasswordGate onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#070a12] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
@@ -723,7 +719,6 @@ export default function App() {
       {/* Top Application Header */}
       <Header
         title={currentProject.title}
-        categoryName={activeCategory.name}
         categoryBadge={activeCategory.badgeText}
         scenes={currentProject.scenes}
         viewMode={viewMode}
@@ -737,6 +732,7 @@ export default function App() {
         onAddScene={handleAddScene}
         onCopyJSON={handleCopyJSON}
         isJsonCopied={isJsonCopied}
+        onLogout={handleLogout}
       />
 
       {/* Main Workspace Layout */}
@@ -758,43 +754,45 @@ export default function App() {
           <div className="max-w-6xl mx-auto space-y-5">
             
             {/* Context Bar: Current Format, Summary & Quick Triggers */}
-            <div className="bg-[#0e1320] border border-[#1b253b] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+            <div className="bg-[#0e1422] border border-[#1d273e] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-950/90 border border-purple-600/40 flex items-center justify-center text-purple-300 shrink-0 shadow-md">
+                <div className="w-10 h-10 rounded-xl bg-purple-950/80 border border-purple-800/60 flex items-center justify-center text-purple-300">
                   <Film className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-bold text-white tracking-tight">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-white tracking-tight">
                       {activeCategory.name}
                     </h2>
-                    <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-600/40 px-2 py-0.5 rounded-full font-bold uppercase">
-                      {activeCategory.badgeText}
+                    <span className="text-[10px] bg-purple-900/60 text-purple-200 border border-purple-700/40 px-2 py-0.5 rounded-full font-bold">
+                      Target: {activeCategory.recommendedDuration}s
                     </span>
-                    <span className="text-[11px] text-emerald-400 font-mono font-bold bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-md">
-                      {totalDuration} Detik • {currentProject.scenes.length} Adegan
-                    </span>
+                    {currentProject.persona && (
+                      <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full font-bold">
+                        Persona: {currentProject.persona}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     {activeCategory.description}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+              <div className="flex items-center flex-wrap gap-2">
                 <button
                   onClick={handleCopyJSON}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-all shadow-sm active:scale-95 ${
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all active:scale-95 shadow-sm border ${
                     isJsonCopied
-                      ? 'bg-emerald-950 border-emerald-500/80 text-emerald-300'
+                      ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
                       : 'bg-[#141b2c] hover:bg-purple-950/40 text-purple-300 hover:text-white border-purple-500/40'
                   }`}
-                  title="Salin data JSON lengkap Storyboard ke Clipboard"
+                  title="Salin data JSON lengkap ke Clipboard"
                 >
                   {isJsonCopied ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="font-bold">JSON Tersalin!</span>
+                      <span className="font-bold text-emerald-300">JSON Tersalin!</span>
                     </>
                   ) : (
                     <>
@@ -810,7 +808,7 @@ export default function App() {
                   title="Muat ulang adegan default untuk kategori ini"
                 >
                   <RotateCcw className="w-3 h-3 text-slate-400" />
-                  <span>Reset Template Default</span>
+                  <span>Reset Default</span>
                 </button>
 
                 <button
@@ -818,15 +816,17 @@ export default function App() {
                   className="flex items-center gap-1.5 bg-[#141b2c] hover:bg-[#1b253b] text-amber-300 text-xs font-semibold px-3 py-1.5 rounded-xl border border-amber-500/30 transition-all shadow-sm active:scale-95"
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Pilih 5 Hook Viral</span>
+                  <span>5 Hook Viral</span>
                 </button>
 
+                {/* Primary Button: Deteksi Produk */}
                 <button
                   onClick={() => setIsAIGeneratorOpen(true)}
                   className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-md transition-all active:scale-95 border border-purple-400/30"
+                  title="Deteksi produk dari link & buat storyboard otomatis"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-                  <span>Generate dengan AI</span>
+                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300/30" />
+                  <span>Deteksi Produk</span>
                 </button>
               </div>
             </div>
@@ -918,64 +918,37 @@ export default function App() {
                 {/* List of Scene Cards */}
                 <div className="space-y-4">
                   {currentProject.scenes.map((scene, index) => (
-                    <SceneCard
-                      key={scene.id}
-                      scene={scene}
-                      index={index}
-                      totalScenes={currentProject.scenes.length}
-                      onUpdate={handleUpdateScene}
-                      onMoveUp={() => handleMoveUp(index)}
-                      onMoveDown={() => handleMoveDown(index)}
-                      onDuplicate={() => handleDuplicateScene(index)}
-                      onDelete={() => handleDeleteScene(index)}
-                      onEnhanceAI={handleEnhanceSceneAI}
-                      onOpenHooksModal={() => setIsHooksModalOpen(true)}
-                      isEnhancing={enhancingSceneId === scene.id}
-                      hookVariants={
-                        index === 0
-                          ? currentProject.hookVariants && currentProject.hookVariants.length > 0
-                            ? currentProject.hookVariants
-                            : [
-                                {
-                                  id: 'h_a',
-                                  name: 'Hook A (Utama)',
-                                  type: 'Visual Shock',
-                                  dialogVO: scene.dialogVO,
-                                  visualAction: scene.visualAction,
-                                  popupText: scene.popupText,
-                                  soundEffect: scene.soundEffect,
-                                  duration: scene.duration,
-                                },
-                              ]
-                          : undefined
-                      }
-                      activeHookIndex={activeHookIndex}
-                      onSelectHookVariant={handleSelectHookVariant}
-                      onAddHookVariant={handleAddHookVariant}
-                    />
+                    <div key={scene.id} id={`scene-card-${scene.id}`}>
+                      <SceneCard
+                        scene={scene}
+                        index={index}
+                        totalScenes={currentProject.scenes.length}
+                        onUpdate={handleUpdateScene}
+                        onDelete={() => handleDeleteScene(scene.id)}
+                        onDuplicate={() => handleDuplicateScene(scene)}
+                        onMoveUp={() => handleMoveScene(index, 'up')}
+                        onMoveDown={() => handleMoveScene(index, 'down')}
+                        onAIEnhance={(instruction) => handleEnhanceScene(scene.id, instruction)}
+                        isEnhancing={enhancingSceneId === scene.id}
+                      />
+                    </div>
                   ))}
                 </div>
 
-                {/* Bottom Add Scene & Actions */}
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Bottom Add Scene Action Bar */}
+                <div className="flex items-center justify-center pt-2">
                   <button
                     onClick={handleAddScene}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0e1320] hover:bg-[#141b2c] text-purple-300 hover:text-purple-100 border-2 border-dashed border-purple-700/40 hover:border-purple-500/80 font-bold text-xs sm:text-sm px-6 py-3 rounded-2xl transition-all shadow-md active:scale-95 group"
+                    className="flex items-center gap-2 bg-[#121929] hover:bg-[#1a233a] text-purple-300 hover:text-white border border-[#222f4c] hover:border-purple-500/50 py-3 px-6 rounded-2xl text-xs font-bold shadow-md transition-all active:scale-98"
                   >
-                    <Plus className="w-4 h-4 text-purple-400 group-hover:rotate-90 transition-transform" />
-                    <span>Tambah Adegan Baru (+ ADEGAN {currentProject.scenes.length + 1})</span>
+                    <Plus className="w-4 h-4 text-purple-400" />
+                    <span>Tambah Adegan Baru ({currentProject.scenes.length + 1})</span>
                   </button>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <span>Total: <strong className="text-white">{currentProject.scenes.length} Adegan</strong></span>
-                    <span>•</span>
-                    <span>Durasi: <strong className="text-emerald-400">{totalDuration} Detik</strong></span>
-                  </div>
                 </div>
               </>
             )}
 
-            {/* VIEW MODE 2: Agency & Client Script Breakdown Table */}
+            {/* VIEW MODE 2: Comprehensive Table Script Breakdown */}
             {viewMode === 'table' && (
               <ScriptTableView
                 scenes={currentProject.scenes}
@@ -985,34 +958,7 @@ export default function App() {
               />
             )}
 
-            {/* VIEW MODE 3: 9:16 Smartphone Simulator with TikTok Safe Zone */}
-            {viewMode === 'phone_preview' && (
-              <PhoneSimulator
-                scenes={currentProject.scenes}
-                title={currentProject.title}
-                categoryName={activeCategory.name}
-                onSelectScene={(idx) => {
-                  setViewMode('cards');
-                  setTimeout(() => {
-                    const el = document.getElementById(`scene-card-${currentProject.scenes[idx]?.id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 150);
-                }}
-              />
-            )}
-
-            {/* VIEW MODE 4: Shot-List & Checklist B-Roll Syuting */}
-            {viewMode === 'shot_list' && (
-              <ShotListChecklist
-                scenes={currentProject.scenes}
-                shotList={currentProject.shotList || []}
-                title={currentProject.title}
-                categoryName={activeCategory.name}
-                onUpdateShotList={handleUpdateShotList}
-              />
-            )}
-
-            {/* VIEW MODE 5: Kalkulator Rate Card & Penawaran Jasa */}
+            {/* VIEW MODE 3: Kalkulator Rate Card & Penawaran Jasa */}
             {viewMode === 'rate_card' && (
               <RateCardCalculator
                 projectTitle={currentProject.title}

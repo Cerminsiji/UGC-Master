@@ -173,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="mt-2.5 w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm transition-all active:scale-95"
               >
                 <Sparkles className="w-3 h-3 text-purple-200" />
-                <span>AI Generate Format Ini</span>
+                <span>Deteksi & Buat Format Ini</span>
               </button>
             </div>
           </div>
